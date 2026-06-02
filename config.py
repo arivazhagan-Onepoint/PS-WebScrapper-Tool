@@ -118,6 +118,7 @@ DATASET_FIELDS = [
     "Tender Status Date",
     "Processed Date",
     "Comments",
+    "CPV Description",
     "Last Modified Date",
     "Created Date",
 ]

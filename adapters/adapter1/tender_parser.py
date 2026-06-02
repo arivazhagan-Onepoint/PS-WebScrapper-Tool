@@ -1,9 +1,22 @@
+import json
 import logging
+import os
 import re
 from datetime import datetime
 from .config import UK_TIMEZONE, PORTAL_NAME, ADAPTER_ID, get_due_date_range
 
 logger = logging.getLogger(__name__)
+
+# Load CPV descriptions from the project-root reference file
+_CPV_DESC_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'cpv_description.json')
+try:
+    with open(_CPV_DESC_PATH, encoding='utf-8') as _f:
+        _CPV_DESCRIPTIONS = {
+            entry['code']: entry['description']
+            for entry in json.load(_f).get('cpv_codes', [])
+        }
+except Exception:
+    _CPV_DESCRIPTIONS = {}
 
 
 class TenderParser:
@@ -38,6 +51,7 @@ class TenderParser:
                 'Last Modified Date':    '',
                 'Created Date':          '',
                 'CPV Code':              self._cpv_codes(tender),
+                'CPV Description':       self._cpv_descriptions(tender),
                 'SC_Flag':               'TBD',
                 'Country':               self._country(release),
                 'Locality':              self._locality(release)
@@ -163,6 +177,32 @@ class TenderParser:
                     _add(ac)
 
         return ', '.join(codes)
+
+    def _cpv_descriptions(self, tender):
+        """Return formatted 'code - description' strings for all CPV codes on the tender."""
+        seen = set()
+        descriptions = []
+
+        def _add(cl):
+            if cl.get('scheme') == 'CPV' and cl.get('id'):
+                code = str(cl['id'])
+                if code not in seen:
+                    seen.add(code)
+                    desc = _CPV_DESCRIPTIONS.get(code, '')
+                    descriptions.append(f"{code} - {desc}" if desc else code)
+
+        _add(tender.get('classification', {}))
+        for item in tender.get('items', []):
+            _add(item.get('classification', {}))
+            for ac in item.get('additionalClassifications', []):
+                _add(ac)
+        for lot in tender.get('lots', []):
+            for item in lot.get('items', []):
+                _add(item.get('classification', {}))
+                for ac in item.get('additionalClassifications', []):
+                    _add(ac)
+
+        return ', '.join(descriptions)
 
     def _build_comment(self, td):
         ts = datetime.now(UK_TIMEZONE).strftime('%Y-%m-%d %H:%M')
