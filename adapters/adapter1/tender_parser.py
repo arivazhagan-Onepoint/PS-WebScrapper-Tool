@@ -120,9 +120,9 @@ class TenderParser:
         if due_date_str:
             try:
                 due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
-                due_start, due_end = get_due_date_range()
-                if not (due_start <= due_date <= due_end):
-                    reason += f" | Due date {due_date_str} outside window [{due_start} – {due_end}]"
+                due_start, _ = get_due_date_range()
+                if due_date < due_start:
+                    reason += f" | Due date {due_date_str} is before window start [{due_start}]"
                     return 'NotQualified', reason
             except Exception:
                 pass  # unparseable due date — no penalty
