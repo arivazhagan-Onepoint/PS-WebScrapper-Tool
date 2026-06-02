@@ -31,8 +31,8 @@ class TenderParser:
                 'Tender Description':    tender.get('description', ''),
                 'Buyer Name':            self._buyer_name(release),
                 'Suitable for SMEs?':    self._sme_flag(tender),
-                'Status':                tender.get('status', ''),
-                'Status Date':           self._status_date(release),
+                'Tender Status':                tender.get('status', ''),
+                'Tender Status Date':           self._status_date(release),
                 'Processed Date':        datetime.now(UK_TIMEZONE).isoformat(),
                 'Comments':              '',  # set below after all fields are known
                 'Last Modified Date':    '',
@@ -54,7 +54,7 @@ class TenderParser:
                 f"Value: {tender_data['Total Contract Value'] or '-'} | "
                 f"Duration: {tender_data['Contract Duration'] or '-'} | "
                 f"SME: {tender_data['Suitable for SMEs?']} | "
-                f"Status: {tender_data['Status'] or '-'} | "
+                f"Status: {tender_data['Tender Status'] or '-'} | "
                 f"Buyer: {tender_data['Buyer Name'][:40] or '-'}"
             )
             return tender_data
@@ -172,7 +172,7 @@ class TenderParser:
             ('Due',    'Due Date'),
             ('Val',    'Total Contract Value'),
             ('Stage',  'Procurement Stage'),
-            ('Status', 'Status'),
+            ('Status', 'Tender Status'),
             ('SME',    'Suitable for SMEs?'),
             ('Buyer',  'Buyer Name'),
         ]:

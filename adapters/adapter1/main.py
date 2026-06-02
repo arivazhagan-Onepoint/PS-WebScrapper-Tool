@@ -82,7 +82,7 @@ def main():
         pre_qualified = 0
         for tender in detailed_tenders:
             status, reason = parser.qualify_tender(tender)
-            tender['Status'] = status
+            tender['Tender Status'] = status
             ts = datetime.now(UK_TIMEZONE).strftime('%Y-%m-%d %H:%M')
             qualify_comment = f"[{ts}] Qualified: {status} | {reason}"
             prior = tender.get('Comments', '')

@@ -25,7 +25,7 @@ LAST_COL = _col_letter(len(DATASET_FIELDS))
 # Fields compared between old and new to detect meaningful changes.
 # Tuple format: (dataset field name, short label for comment, max chars or None)
 CHANGE_FIELDS = [
-    ('Status',                'Status',       None),
+    ('Tender Status',         'Status',       None),
     ('Total Contract Value',  'Value',        None),
     ('Contract Duration',     'Duration',     None),
     ('Due Date',              'Due',          None),
@@ -363,19 +363,19 @@ class SheetsWriter:
                     tender['Created Date'] = existing_data.get('Created Date') or now
                     # If the sheet holds a manually set status (not a system value),
                     # restore it and leave Status Date untouched — do not overwrite.
-                    old_status = str(existing_data.get('Status', '')).strip()
+                    old_status = str(existing_data.get('Tender Status', '')).strip()
                     if old_status not in SYSTEM_STATUSES:
-                        tender['Status'] = old_status
-                        tender['Status Date'] = existing_data.get('Status Date', '')
+                        tender['Tender Status'] = old_status
+                        tender['Tender Status Date'] = existing_data.get('Tender Status Date', '')
                         logger.info(f"Preserving manual status '{old_status}' for OCID {tender_ocid} - qualification not applied")
                     else:
                         # System status — apply qualification and stamp Status Date on change
-                        new_status = str(tender.get('Status', '')).strip()
+                        new_status = str(tender.get('Tender Status', '')).strip()
                         if new_status and new_status != old_status:
-                            tender['Status Date'] = today
+                            tender['Tender Status Date'] = today
                             logger.info(f"Status changed for OCID {tender_ocid}: '{old_status}' -> '{new_status}' | Status Date set to {today}")
                         else:
-                            tender['Status Date'] = existing_data.get('Status Date', '')
+                            tender['Tender Status Date'] = existing_data.get('Tender Status Date', '')
                     # Build change-diff comment and append to existing
                     diff = self._build_update_comment(tender, existing_data, ts)
                     prior = existing_data.get('Comments', '')
@@ -384,7 +384,7 @@ class SheetsWriter:
                     updates.append((existing_row, row_values))
                 else:
                     # New record: stamp Status Date, Created Date, and Last Modified Date
-                    tender['Status Date'] = today
+                    tender['Tender Status Date'] = today
                     tender['Last Modified Date'] = now
                     tender['Created Date'] = now
                     row_values = [tender.get(field, '') for field in DATASET_FIELDS]
