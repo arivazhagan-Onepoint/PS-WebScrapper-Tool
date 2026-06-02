@@ -74,6 +74,7 @@ class SheetsWriter:
                 logger.info(f"Found existing sheet: {self.sheet_id}")
                 self._get_sheet_tab_id()
                 self._ensure_columns_match()
+                self._freeze_header_row()
                 self.load_existing_records()
                 return self.sheet_id
 
@@ -104,6 +105,7 @@ class SheetsWriter:
 
             self.move_sheet_to_folder(self.sheet_id)
             self.add_headers()
+            self._freeze_header_row()
 
             return self.sheet_id
 
@@ -234,6 +236,27 @@ class SheetsWriter:
         except HttpError as e:
             logger.error(f"Error adding headers: {e}")
 
+    def _freeze_header_row(self):
+        """Freeze the first row so the header stays visible when scrolling."""
+        try:
+            self._execute_with_retry(
+                lambda: self.sheets_service.spreadsheets().batchUpdate(
+                    spreadsheetId=self.sheet_id,
+                    body={"requests": [{
+                        "updateSheetProperties": {
+                            "properties": {
+                                "sheetId": self.sheet_tab_id,
+                                "gridProperties": {"frozenRowCount": 1}
+                            },
+                            "fields": "gridProperties.frozenRowCount"
+                        }
+                    }]}
+                ).execute()
+            )
+            logger.info("Header row frozen")
+        except HttpError as e:
+            logger.warning(f"Error freezing header row: {e}")
+
     def load_existing_records(self):
         """Load all columns for existing rows, mapping URL/ID/OCID to row numbers and storing full row data."""
         try:
@@ -276,8 +299,9 @@ class SheetsWriter:
         except HttpError as e:
             logger.warning(f"Error loading existing records: {e}")
 
-    def _build_update_comment(self, tender, existing_data, ts):
-        """Generate a change-diff comment or 'no changes' note for an updated record."""
+    def _build_update_comment(self, tender, existing_data, ts, status_reason=''):
+        """Generate a change-diff comment or 'no changes' note for an updated record.
+        When status_reason is provided it is appended inline to the Status change entry."""
         changes = []
         for field, label, max_len in CHANGE_FIELDS:
             old = str(existing_data.get(field, '')).strip()
@@ -286,7 +310,10 @@ class SheetsWriter:
                 if max_len:
                     old = (old[:max_len] + '…') if len(old) > max_len else old
                     new = (new[:max_len] + '…') if len(new) > max_len else new
-                changes.append(f"{label}: {old or '-'} -> {new}")
+                entry = f"{label}: {old or '-'} -> {new}"
+                if field == 'Tender Status' and status_reason:
+                    entry += f" ({status_reason})"
+                changes.append(entry)
         if changes:
             return f"[{ts}] Updated | " + " | ".join(changes)
         return f"[{ts}] Re-scraped, no changes"
@@ -377,11 +404,11 @@ class SheetsWriter:
                             logger.info(f"Status changed for OCID {tender_ocid}: '{old_status}' -> '{new_status}' | Status Date set to {today}")
                         else:
                             tender['Tender Status Date'] = existing_data.get('Tender Status Date', '')
-                    # Build comments: existing sheet comments + qualification reason + change diff
-                    diff = self._build_update_comment(tender, existing_data, ts)
+                    # Build comments: existing sheet comments + change diff (reason inlined on status change)
+                    status_reason = qualify_comment.split(' | ', 1)[-1] if qualify_comment else ''
+                    diff = self._build_update_comment(tender, existing_data, ts, status_reason)
                     prior = existing_data.get('Comments', '')
-                    parts = [p for p in [prior, qualify_comment, diff] if p]
-                    tender['Comments'] = '\n'.join(parts)
+                    tender['Comments'] = (prior + '\n' + diff) if prior else diff
                     row_values = [tender.get(field, '') for field in DATASET_FIELDS]
                     updates.append((existing_row, row_values))
                 else:
