@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 from .scraper import TenderScraper
 from .tender_parser import TenderParser
-from .sheets_writer import SheetsWriter
+from .sheets_writer import SheetsWriter, dedup_by_ocid
 from .sc_checker import SCChecker
 from .config import LOG_FILE, LOG_FORMAT, BASE_DIR, UK_TIMEZONE, ADAPTER_ID
 
@@ -55,6 +55,13 @@ def main():
                 detailed_tenders.append(detail)
 
         logger.info(f"Successfully parsed {len(detailed_tenders)} tender details")
+
+        # Step 3b: Deduplicate by OCID before SC checking to avoid wasted portal fetches
+        before = len(detailed_tenders)
+        detailed_tenders = dedup_by_ocid(detailed_tenders)
+        dropped = before - len(detailed_tenders)
+        if dropped:
+            logger.info(f"Dedup removed {dropped} duplicate OCID release(s) — {len(detailed_tenders)} unique tenders proceeding to SC check")
 
         # Step 4: SC Flag — browse each portal page and check for security clearance requirements
         logger.info("\n[4/6] Checking Security Clearance (SC) flag via portal pages...")

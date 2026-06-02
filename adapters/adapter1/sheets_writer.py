@@ -42,6 +42,30 @@ CHANGE_FIELDS = [
 ]
 
 
+def dedup_by_ocid(tenders):
+    """For tenders sharing the same OCID, keep only the one with the latest Published On date."""
+    ocid_index = {}
+    result = []
+    for tender in tenders:
+        ocid = tender.get('OCID', '')
+        if not ocid:
+            result.append(tender)
+            continue
+        if ocid not in ocid_index:
+            ocid_index[ocid] = len(result)
+            result.append(tender)
+        else:
+            pos = ocid_index[ocid]
+            kept_date = result[pos].get('Published On', '')
+            this_date = tender.get('Published On', '')
+            if this_date > kept_date:
+                logger.info(f"OCID {ocid}: replacing {kept_date} with newer release {this_date}")
+                result[pos] = tender
+            else:
+                logger.info(f"OCID {ocid}: skipping older release {this_date} (keeping {kept_date})")
+    return result
+
+
 class SheetsWriter:
     def __init__(self, adapter_id=ADAPTER_ID):
         self.sheets_service = get_authenticated_service('sheets', 'v4')
@@ -324,28 +348,6 @@ class SheetsWriter:
             return self.existing_ocid_rows[ocid]
         return None
 
-    def _dedup_by_ocid(self, tenders):
-        """For tenders sharing the same OCID, keep only the one with the latest Published On date."""
-        ocid_index = {}  # ocid -> position in result list
-        result = []
-        for tender in tenders:
-            ocid = tender.get('OCID', '')
-            if not ocid:
-                result.append(tender)
-                continue
-            if ocid not in ocid_index:
-                ocid_index[ocid] = len(result)
-                result.append(tender)
-            else:
-                pos = ocid_index[ocid]
-                kept_date = result[pos].get('Published On', '')
-                this_date = tender.get('Published On', '')
-                if this_date > kept_date:
-                    logger.info(f"OCID {ocid}: replacing {kept_date} with newer release {this_date}")
-                    result[pos] = tender
-                else:
-                    logger.info(f"OCID {ocid}: skipping older release {this_date} (keeping {kept_date})")
-        return result
 
     def write_batch(self, tenders):
         """Append new tenders and update existing ones in the sheet."""
@@ -354,8 +356,8 @@ class SheetsWriter:
         from .config import UK_TIMEZONE
         now = datetime.now(UK_TIMEZONE).isoformat()
 
-        # When the API returns multiple releases for the same OCID, keep only the latest.
-        tenders = self._dedup_by_ocid(tenders)
+        # Dedup is already applied in main.py before SC checking; this is a safety net.
+        tenders = dedup_by_ocid(tenders)
 
         new_rows = []
         updates = []       # list of (row_number, row_values) for existing records
