@@ -84,9 +84,7 @@ def main():
             status, reason = parser.qualify_tender(tender)
             tender['Tender Status'] = status
             ts = datetime.now(UK_TIMEZONE).strftime('%Y-%m-%d %H:%M')
-            qualify_comment = f"[{ts}] Qualified: {status} | {reason}"
-            prior = tender.get('Comments', '')
-            tender['Comments'] = (prior + '\n' + qualify_comment) if prior else qualify_comment
+            tender['_qualify_comment'] = f"[{ts}] Tender Status: {status} | {reason}"
             if status == 'PreQualified':
                 pre_qualified += 1
         logger.info(f"Qualification complete: {pre_qualified} PreQualified | {len(detailed_tenders) - pre_qualified} NotQualified")

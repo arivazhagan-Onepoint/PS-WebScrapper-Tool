@@ -349,6 +349,7 @@ class SheetsWriter:
                     seen_in_batch[tender_ocid] = True
 
                 existing_row = self.find_existing_row(tender_ocid)
+                qualify_comment = tender.pop('_qualify_comment', '')
 
                 today = datetime.fromisoformat(now).strftime('%Y-%m-%d')
 
@@ -376,14 +377,18 @@ class SheetsWriter:
                             logger.info(f"Status changed for OCID {tender_ocid}: '{old_status}' -> '{new_status}' | Status Date set to {today}")
                         else:
                             tender['Tender Status Date'] = existing_data.get('Tender Status Date', '')
-                    # Build change-diff comment and append to existing
+                    # Build comments: existing sheet comments + qualification reason + change diff
                     diff = self._build_update_comment(tender, existing_data, ts)
                     prior = existing_data.get('Comments', '')
-                    tender['Comments'] = (prior + '\n' + diff) if prior else diff
+                    parts = [p for p in [prior, qualify_comment, diff] if p]
+                    tender['Comments'] = '\n'.join(parts)
                     row_values = [tender.get(field, '') for field in DATASET_FIELDS]
                     updates.append((existing_row, row_values))
                 else:
-                    # New record: stamp Status Date, Created Date, and Last Modified Date
+                    # New record: append qualify comment to first-scraped + SC check comments
+                    prior = tender.get('Comments', '')
+                    tender['Comments'] = (prior + '\n' + qualify_comment) if prior else qualify_comment
+                    # Stamp Tender Status Date, Created Date, and Last Modified Date
                     tender['Tender Status Date'] = today
                     tender['Last Modified Date'] = now
                     tender['Created Date'] = now
