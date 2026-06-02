@@ -1,9 +1,10 @@
 import logging
+import re
 import time
 import random
 from datetime import datetime
 from googleapiclient.errors import HttpError
-from .config import TARGET_FOLDER_ID, SHEET_NAME, DATASET_FIELDS, ADAPTER_ID
+from .config import TARGET_FOLDER_ID, SHEET_NAME, DATASET_FIELDS, ADAPTER_ID, UK_TIMEZONE
 from .google_sheets_auth import get_authenticated_service
 
 logger = logging.getLogger(__name__)
@@ -99,6 +100,7 @@ class SheetsWriter:
                 self._get_sheet_tab_id()
                 self._ensure_columns_match()
                 self._freeze_header_row()
+                self._update_summary_row()
                 self.load_existing_records()
                 return self.sheet_id
 
@@ -130,6 +132,7 @@ class SheetsWriter:
             self.move_sheet_to_folder(self.sheet_id)
             self.add_headers()
             self._freeze_header_row()
+            self._update_summary_row()
 
             return self.sheet_id
 
@@ -178,11 +181,11 @@ class SheetsWriter:
         self.sheet_tab_id = 0
 
     def _ensure_columns_match(self):
-        """Insert any columns present in DATASET_FIELDS but missing from the sheet's header row."""
+        """Insert any columns present in DATASET_FIELDS but missing from the sheet's header row (row 2)."""
         result = self._execute_with_retry(
             lambda: self.sheets_service.spreadsheets().values().get(
                 spreadsheetId=self.sheet_id,
-                range=f"'{SHEET_NAME}'!1:1"
+                range=f"'{SHEET_NAME}'!2:2"
             ).execute()
         )
         sheet_headers = result.get('values', [[]])[0] if result.get('values') else []
@@ -210,7 +213,7 @@ class SheetsWriter:
                     "fields": "userEnteredValue",
                     "start": {
                         "sheetId": self.sheet_tab_id,
-                        "rowIndex": 0,
+                        "rowIndex": 1,   # row 2 (0-indexed)
                         "columnIndex": insert_at
                     }
                 }
@@ -245,20 +248,46 @@ class SheetsWriter:
             logger.warning(f"Error moving sheet: {e}")
 
     def add_headers(self):
-        """Add header row to sheet."""
+        """Write header row to row 2 (row 1 is reserved for the user's summary)."""
         try:
             self._execute_with_retry(
                 lambda: self.sheets_service.spreadsheets().values().update(
                     spreadsheetId=self.sheet_id,
-                    range=f"'{SHEET_NAME}'!A1:{LAST_COL}1",
+                    range=f"'{SHEET_NAME}'!A2:{LAST_COL}2",
                     valueInputOption='RAW',
                     body={'values': [DATASET_FIELDS]}
                 ).execute()
             )
-            logger.info("Headers added to sheet")
+            logger.info("Headers added to row 2")
 
         except HttpError as e:
             logger.error(f"Error adding headers: {e}")
+
+    def _update_summary_row(self):
+        """Append/update the run date in cell A1 without overwriting the user's summary text."""
+        try:
+            result = self._execute_with_retry(
+                lambda: self.sheets_service.spreadsheets().values().get(
+                    spreadsheetId=self.sheet_id,
+                    range=f"'{SHEET_NAME}'!A1"
+                ).execute()
+            )
+            existing = result.get('values', [['']])[0][0] if result.get('values') else ''
+            date_str = datetime.now(UK_TIMEZONE).strftime('%d-%b-%Y')
+            # Replace an existing run-date stamp if present, otherwise append
+            updated = re.sub(r'\s*\|\s*Last Run:\s*\d{2}-[A-Za-z]{3}-\d{4}', '', existing).rstrip()
+            updated = f"{updated} | Last Run: {date_str}" if updated else f"Last Run: {date_str}"
+            self._execute_with_retry(
+                lambda: self.sheets_service.spreadsheets().values().update(
+                    spreadsheetId=self.sheet_id,
+                    range=f"'{SHEET_NAME}'!A1",
+                    valueInputOption='RAW',
+                    body={'values': [[updated]]}
+                ).execute()
+            )
+            logger.info(f"Summary row A1 updated with run date: {date_str}")
+        except HttpError as e:
+            logger.warning(f"Error updating summary row: {e}")
 
     def _freeze_header_row(self):
         """Freeze the first row so the header stays visible when scrolling."""
@@ -295,12 +324,13 @@ class SheetsWriter:
             if not values:
                 return
 
-            # Build column index from actual sheet headers (row 1) so existing data
-            # is read correctly even if column positions differ from DATASET_FIELDS.
-            actual_headers = values[0]
+            # Row 1 = user summary, row 2 = headers, row 3+ = data.
+            if len(values) < 2:
+                return
+            actual_headers = values[1]
             actual_field_idx = {h: i for i, h in enumerate(actual_headers) if h}
 
-            for idx, row in enumerate(values[1:], start=2):
+            for idx, row in enumerate(values[2:], start=3):
                 row_data = {}
                 for field in DATASET_FIELDS:
                     col_i = actual_field_idx.get(field)
