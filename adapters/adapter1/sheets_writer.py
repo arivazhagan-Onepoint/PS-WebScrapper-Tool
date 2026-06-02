@@ -246,7 +246,7 @@ class SheetsWriter:
                         "updateSheetProperties": {
                             "properties": {
                                 "sheetId": self.sheet_tab_id,
-                                "gridProperties": {"frozenRowCount": 1}
+                                "gridProperties": {"frozenRowCount": 2}
                             },
                             "fields": "gridProperties.frozenRowCount"
                         }
