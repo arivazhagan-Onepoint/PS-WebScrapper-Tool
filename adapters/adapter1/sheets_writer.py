@@ -23,6 +23,12 @@ def _col_letter(n):
 
 LAST_COL = _col_letter(len(DATASET_FIELDS))
 
+# Maps old column header names to their renamed equivalents.
+# _ensure_columns_match() renames these in-place instead of inserting a new column.
+COLUMN_RENAMES = {
+    "Due Date": "Tender Due Date",
+}
+
 # Fields compared between old and new to detect meaningful changes.
 # Tuple format: (dataset field name, short label for comment, max chars or None)
 CHANGE_FIELDS = [
@@ -194,6 +200,24 @@ class SheetsWriter:
         requests = []
         for expected_idx, field in enumerate(DATASET_FIELDS):
             if field in sheet_headers:
+                continue
+            # Check if this is a renamed column — update header in-place instead of inserting
+            old_name = next((old for old, new in COLUMN_RENAMES.items() if new == field and old in sheet_headers), None)
+            if old_name:
+                old_col_idx = sheet_headers.index(old_name)
+                requests.append({
+                    "updateCells": {
+                        "rows": [{"values": [{"userEnteredValue": {"stringValue": field}}]}],
+                        "fields": "userEnteredValue",
+                        "start": {
+                            "sheetId": self.sheet_tab_id,
+                            "rowIndex": 1,   # row 2 (0-indexed)
+                            "columnIndex": old_col_idx
+                        }
+                    }
+                })
+                sheet_headers[old_col_idx] = field
+                logger.info(f"Queued column rename: '{old_name}' -> '{field}' at position {old_col_idx + 1}")
                 continue
             # Column is missing — insert a blank column at the expected position
             insert_at = expected_idx
