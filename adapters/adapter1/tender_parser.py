@@ -244,11 +244,6 @@ class TenderParser:
         if eoi:
             return eoi
 
-        # Priority 4
-        future = tender.get('communication', {}).get('futureNoticeDate', '')
-        if future:
-            return future
-
         return ''
 
     def _published_date(self, release):
