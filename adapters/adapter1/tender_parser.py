@@ -36,7 +36,8 @@ class TenderParser:
                 'ID':                    self._notice_id(release, direct_url),
                 'OCID':                  release.get('ocid', ''),
                 'Name':                  tender.get('title', ''),
-                'Due Date':              self._format_date(self._due_date(tender, release)),
+                'Tender Due Date':       self._format_date(self._due_date(tender, release)),
+                'Clarification Due Date': self._format_date(tender.get('enquiryPeriod', {}).get('endDate', '')),
                 'Procurement Stage':     self._procurement_stage(release),
                 'Total Contract Value':  self._value(tender, release),
                 'Contract Duration':     self._duration(tender, release),
@@ -63,7 +64,7 @@ class TenderParser:
                 f"  [PARSED] {tender_data['ID']} | "
                 f"Name: {tender_data['Name'][:50]} | "
                 f"Published: {tender_data['Published On'] or '-'} | "
-                f"Due: {tender_data['Due Date'] or '-'} | "
+                f"Due: {tender_data['Tender Due Date'] or '-'} | "
                 f"Stage: {tender_data['Procurement Stage'][:30] or '-'} | "
                 f"Value: {tender_data['Total Contract Value'] or '-'} | "
                 f"Duration: {tender_data['Contract Duration'] or '-'} | "
@@ -130,7 +131,7 @@ class TenderParser:
             return 'NotQualified', reason
 
         # Due date check — only reached when value/stage rules pass
-        due_date_str = (tender_data.get('Due Date') or '').strip()
+        due_date_str = (tender_data.get('Tender Due Date') or '').strip()
         if due_date_str:
             try:
                 due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
@@ -209,7 +210,7 @@ class TenderParser:
         parts = [f"[{ts}] First scraped"]
         for label, key in [
             ('Pub',    'Published On'),
-            ('Due',    'Due Date'),
+            ('Due',    'Tender Due Date'),
             ('Val',    'Total Contract Value'),
             ('Stage',  'Procurement Stage'),
             ('Status', 'Tender Status'),
