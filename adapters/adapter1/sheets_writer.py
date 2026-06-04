@@ -397,6 +397,85 @@ class SheetsWriter:
             return f"[{ts}] Updated | " + " | ".join(changes)
         return f"[{ts}] Re-scraped, no changes"
 
+    # RGB colours used for qualification reason text in Comments cells
+    _COLOUR_PREQUALIFIED = {'red': 0.0,  'green': 0.6, 'blue': 0.2}
+    _COLOUR_NOTQUALIFIED  = {'red': 0.8,  'green': 0.0, 'blue': 0.0}
+
+    def _build_text_format_runs(self, text):
+        """Return textFormatRuns to italicise and colour the qualification reason text.
+
+        Detects two line patterns:
+          • [ts] Tender Status: STATUS | REASON
+          • [ts] Updated | Status: old -> new (REASON)
+        Colours green for PreQualified lines, red for NotQualified lines.
+        """
+        italic_ranges = []   # list of (start_char, end_char, colour_dict)
+        pos = 0
+        for line in text.split('\n'):
+            if 'PreQualified' in line:
+                colour = self._COLOUR_PREQUALIFIED
+            elif 'NotQualified' in line:
+                colour = self._COLOUR_NOTQUALIFIED
+            else:
+                colour = None
+
+            if 'Tender Status:' in line and ' | ' in line:
+                reason_pos = line.rfind(' | ') + 3
+                italic_ranges.append((pos + reason_pos, pos + len(line), colour))
+            elif 'Status:' in line and '->' in line:
+                m = re.search(r'(\([^)]+\))\s*$', line)
+                if m:
+                    italic_ranges.append((pos + m.start(1), pos + m.end(1), colour))
+            pos += len(line) + 1  # +1 for \n
+
+        if not italic_ranges:
+            return []
+
+        runs = [{'startIndex': 0, 'format': {}}]
+        for start, end, colour in italic_ranges:
+            fmt = {'italic': True}
+            if colour:
+                fmt['foregroundColorStyle'] = {'rgbColor': colour}
+            runs.append({'startIndex': start, 'format': fmt})
+            if end < len(text):
+                runs.append({'startIndex': end, 'format': {}})
+        return runs
+
+    def _apply_comment_formatting(self, row_comment_pairs):
+        """Write italic + colour textFormatRuns to the Comments column for the given rows."""
+        if not row_comment_pairs:
+            return
+        comments_col_idx = DATASET_FIELDS.index('Comments')
+        requests = []
+        for row_num, comments_text in row_comment_pairs:
+            if not comments_text:
+                continue
+            format_runs = self._build_text_format_runs(comments_text)
+            if not format_runs:
+                continue
+            requests.append({
+                'updateCells': {
+                    'rows': [{'values': [{
+                        'userEnteredValue': {'stringValue': comments_text},
+                        'textFormatRuns': format_runs
+                    }]}],
+                    'fields': 'userEnteredValue,textFormatRuns',
+                    'start': {
+                        'sheetId': self.sheet_tab_id,
+                        'rowIndex': row_num - 1,   # 0-indexed
+                        'columnIndex': comments_col_idx
+                    }
+                }
+            })
+        if requests:
+            self._execute_with_retry(
+                lambda: self.sheets_service.spreadsheets().batchUpdate(
+                    spreadsheetId=self.sheet_id,
+                    body={'requests': requests}
+                ).execute()
+            )
+            logger.info(f"Applied italic/colour formatting to Comments in {len(requests)} row(s)")
+
     def find_existing_row(self, ocid):
         """Return sheet row number if this tender already exists (matched by OCID), else None."""
         if ocid and ocid in self.existing_ocid_rows:
@@ -485,9 +564,10 @@ class SheetsWriter:
                 results['errors'] += 1
 
         # Append new records in one API call
+        new_format_pairs = []
         if new_rows:
             try:
-                self._execute_with_retry(
+                append_response = self._execute_with_retry(
                     lambda: self.sheets_service.spreadsheets().values().append(
                         spreadsheetId=self.sheet_id,
                         range=f"'{SHEET_NAME}'!A:{LAST_COL}",
@@ -498,11 +578,19 @@ class SheetsWriter:
                 )
                 results['written'] = len(new_rows)
                 logger.info(f"Appended {len(new_rows)} new tenders")
+                # Determine which rows were written so we can apply comment formatting
+                updated_range = append_response.get('updates', {}).get('updatedRange', '')
+                row_match = re.search(r'!A(\d+):', updated_range)
+                if row_match:
+                    start_row = int(row_match.group(1))
+                    comments_idx = DATASET_FIELDS.index('Comments')
+                    new_format_pairs = [(start_row + i, row[comments_idx]) for i, row in enumerate(new_rows)]
             except HttpError as e:
                 logger.error(f"Error appending new tenders: {e}")
                 results['errors'] += len(new_rows)
 
         # Update existing records in one batchUpdate call
+        update_format_pairs = []
         if updates:
             try:
                 update_body = {
@@ -523,9 +611,14 @@ class SheetsWriter:
                 )
                 results['updated'] = len(updates)
                 logger.info(f"Updated {len(updates)} existing tenders")
+                comments_idx = DATASET_FIELDS.index('Comments')
+                update_format_pairs = [(row_num, row_values[comments_idx]) for row_num, row_values in updates]
             except HttpError as e:
                 logger.error(f"Error updating existing tenders: {e}")
                 results['errors'] += len(updates)
+
+        # Apply italic + colour formatting to reason text in Comments cells
+        self._apply_comment_formatting(new_format_pairs + update_format_pairs)
 
         logger.info(f"Batch write results: {results}")
         return results
