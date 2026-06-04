@@ -485,8 +485,6 @@ class SheetsWriter:
                 if existing_row:
                     ts = datetime.fromisoformat(now).strftime('%Y-%m-%d %H:%M')
                     existing_data = self.existing_row_data.get(existing_row, {})
-                    # Preserve Created Date, stamp Last Modified Date
-                    tender['Last Modified Date'] = now
                     tender['Created Date'] = existing_data.get('Created Date') or now
                     # If the sheet holds a manually set status (not a system value),
                     # restore it and leave Status Date untouched — do not overwrite.
@@ -506,6 +504,9 @@ class SheetsWriter:
                     # Build comments: existing sheet comments + change diff (reason inlined on status change)
                     status_reason = qualify_comment.split(' | ', 1)[-1] if qualify_comment else ''
                     diff = self._build_update_comment(tender, existing_data, ts, status_reason)
+                    # Last Modified Date only updates when something actually changed
+                    has_changes = 'no changes' not in diff
+                    tender['Last Modified Date'] = now if has_changes else existing_data.get('Last Modified Date', now)
                     prior = existing_data.get('Comments', '')
                     tender['Comments'] = (prior + '\n' + diff) if prior else diff
                     row_values = [tender.get(field, '') for field in DATASET_FIELDS]
