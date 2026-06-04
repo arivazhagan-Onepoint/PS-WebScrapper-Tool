@@ -14,12 +14,17 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Main orchestration function."""
+    # Reconfigure stdout to UTF-8 so non-ASCII characters in tender titles
+    # don't cause UnicodeEncodeError on Windows consoles (default cp1252).
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
     logging.basicConfig(
         level=logging.INFO,
         format=LOG_FORMAT,
         force=True,
         handlers=[
-            logging.FileHandler(LOG_FILE),
+            logging.FileHandler(LOG_FILE, encoding='utf-8'),
             logging.StreamHandler(sys.stdout)
         ]
     )
