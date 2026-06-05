@@ -95,7 +95,7 @@ def main():
         for tender in detailed_tenders:
             status, reason = parser.qualify_tender(tender)
             tender['Tender Status'] = status
-            tender['Tender Qualify Reason'] = reason
+            tender['Tender Qualify Reason'] = reason if status == 'NotQualified' else ''
             ts = datetime.now(UK_TIMEZONE).strftime('%Y-%m-%d %H:%M')
             tender['_qualify_comment'] = f"[{ts}] Tender Status: {status} | {reason}"
             if status == 'PreQualified':
