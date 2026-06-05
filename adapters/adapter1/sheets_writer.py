@@ -529,6 +529,7 @@ class SheetsWriter:
                     if old_status not in SYSTEM_STATUSES:
                         tender['Tender Status'] = old_status
                         tender['Tender Status Date'] = existing_data.get('Tender Status Date', '')
+                        tender['Tender Qualify Reason'] = existing_data.get('Tender Qualify Reason', '')
                         logger.info(f"Preserving manual status '{old_status}' for OCID {tender_ocid} - qualification not applied")
                     else:
                         # System status — apply qualification and stamp Status Date on change

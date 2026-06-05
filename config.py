@@ -107,6 +107,7 @@ DATASET_FIELDS = [
     "Suitable for SMEs?",
     "Tender Status",
     "Tender Status Date",
+    "Tender Qualify Reason",
     "Comments",
     "Processed Date",
     "Last Modified Date",
