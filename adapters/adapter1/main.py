@@ -95,7 +95,14 @@ def main():
         for tender in detailed_tenders:
             status, reason = parser.qualify_tender(tender)
             tender['Tender Status'] = status
-            tender['Tender Qualify Reason'] = reason if status == 'NotQualified' else ''
+            # Strip "X stage | " prefix for the display column — keep full reason in Comments
+            if status == 'NotQualified':
+                display_reason = reason
+                if ' | ' in reason and 'stage' in reason.split(' | ')[0].lower():
+                    display_reason = reason.split(' | ', 1)[1]
+                tender['Tender Qualify Reason'] = display_reason
+            else:
+                tender['Tender Qualify Reason'] = ''
             ts = datetime.now(UK_TIMEZONE).strftime('%Y-%m-%d %H:%M')
             tender['_qualify_comment'] = f"[{ts}] Tender Status: {status} | {reason}"
             if status == 'PreQualified':
