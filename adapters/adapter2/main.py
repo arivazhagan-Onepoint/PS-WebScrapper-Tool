@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Main orchestration function."""
-    # Reconfigure stdout to UTF-8 so non-ASCII characters in tender titles
-    # don't cause UnicodeEncodeError on Windows consoles (default cp1252).
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
@@ -54,21 +52,20 @@ def main():
 
         for idx, summary in enumerate(tender_summaries, 1):
             logger.info(f"Parsing tender {idx}/{len(tender_summaries)}: {summary.get('id', 'Unknown')}")
-
             detail = parser.parse_tender_detail(summary)
             if detail:
                 detailed_tenders.append(detail)
 
         logger.info(f"Successfully parsed {len(detailed_tenders)} tender details")
 
-        # Step 3b: Deduplicate by OCID before SC checking to avoid wasted portal fetches
+        # Step 3b: Deduplicate by OCID before SC checking
         before = len(detailed_tenders)
         detailed_tenders = dedup_by_ocid(detailed_tenders)
         dropped = before - len(detailed_tenders)
         if dropped:
             logger.info(f"Dedup removed {dropped} duplicate OCID release(s) — {len(detailed_tenders)} unique tenders proceeding to SC check")
 
-        # Step 4: SC Flag — browse each portal page and check for security clearance requirements
+        # Step 4: SC Flag
         logger.info("\n[4/6] Checking Security Clearance (SC) flag via portal pages...")
         sc_checker = SCChecker()
         sc_found_count = 0
@@ -136,4 +133,3 @@ def main():
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
-
