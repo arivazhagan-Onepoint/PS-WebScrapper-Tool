@@ -34,7 +34,12 @@ class TenderScraper:
                     time.sleep(wait)
                     continue
                 response.raise_for_status()
-                return response.json()
+                try:
+                    return response.json()
+                except ValueError as e:
+                    logger.error(f"Malformed JSON from API (not retrying): {e}")
+                    logger.error(f"Raw response snippet: {response.text[:500]}")
+                    return None
             except requests.RequestException as e:
                 logger.error(f"API request failed: {e}")
                 if attempt < max_retries - 1:
