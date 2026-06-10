@@ -8,6 +8,9 @@ logger = logging.getLogger(__name__)
 
 class TenderParser:
 
+    def __init__(self, run_ts):
+        self.run_ts = run_ts
+
     def parse_tender_detail(self, summary):
         """Parse an OCDS release dict (from scraper) into the dataset row format."""
         try:
@@ -36,7 +39,7 @@ class TenderParser:
                 'Suitable for SMEs?':    self._sme_flag(tender),
                 'Tender Status':         tender.get('status', ''),
                 'Tender Status Date':    self._status_date(release),
-                'Processed Date':        datetime.now(UK_TIMEZONE).isoformat(),
+                'Processed Date':        self.run_ts,
                 'Comments':              '',  # set below after all fields are known
                 'Last Modified Date':    '',
                 'Created Date':          '',

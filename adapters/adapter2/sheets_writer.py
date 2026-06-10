@@ -459,12 +459,11 @@ class SheetsWriter:
         return None
 
 
-    def write_batch(self, tenders):
+    def write_batch(self, tenders, run_ts):
         """Append new tenders and update existing ones in the sheet."""
         results = {'written': 0, 'updated': 0, 'skipped_in_batch': 0, 'errors': 0}
 
-        from .config import UK_TIMEZONE
-        now = datetime.now(UK_TIMEZONE).isoformat()
+        now = run_ts
 
         # Dedup is already applied in main.py before SC checking; this is a safety net.
         tenders = dedup_by_ocid(tenders)

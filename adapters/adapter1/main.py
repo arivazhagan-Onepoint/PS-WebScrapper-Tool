@@ -33,6 +33,9 @@ def main():
         logger.info("Starting PS Tender Tracker - Web Scraper")
         logger.info("=" * 80)
 
+        run_ts = datetime.now(UK_TIMEZONE).isoformat()
+        logger.info(f"Run timestamp: {run_ts}")
+
         # Step 1: Initialize scraper
         logger.info("\n[1/6] Initializing web scraper...")
         scraper = TenderScraper()
@@ -49,7 +52,7 @@ def main():
 
         # Step 3: Parse tender details
         logger.info("\n[3/6] Parsing tender details...")
-        parser = TenderParser()
+        parser = TenderParser(run_ts=run_ts)
         detailed_tenders = []
 
         for idx, summary in enumerate(tender_summaries, 1):
@@ -96,7 +99,7 @@ def main():
             status, reason = parser.qualify_tender(tender)
             tender['Tender Status'] = status
             tender['Tender Status Reason'] = reason if status == 'NotQualified' else ''
-            ts = datetime.now(UK_TIMEZONE).strftime('%Y-%m-%d %H:%M')
+            ts = datetime.fromisoformat(run_ts).strftime('%Y-%m-%d %H:%M')
             tender['_qualify_comment'] = f"[{ts}] Tender Status: {status} | {reason}"
             if status == 'PreQualified':
                 pre_qualified += 1
@@ -105,7 +108,7 @@ def main():
         # Step 5b: Write parsed tenders to JSON file
         json_dir = os.path.join(BASE_DIR, 'target_json')
         os.makedirs(json_dir, exist_ok=True)
-        timestamp = datetime.now(UK_TIMEZONE).strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.fromisoformat(run_ts).strftime('%Y%m%d_%H%M%S')
         json_path = os.path.join(json_dir, f"tenders_{timestamp}.json")
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(detailed_tenders, f, indent=2, ensure_ascii=False)
@@ -116,7 +119,7 @@ def main():
         writer = SheetsWriter(adapter_id=ADAPTER_ID)
         sheet_id = writer.get_or_create_sheet()
 
-        results = writer.write_batch(detailed_tenders)
+        results = writer.write_batch(detailed_tenders, run_ts=run_ts)
 
         # Summary
         logger.info("\n" + "=" * 80)

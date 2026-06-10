@@ -63,13 +63,13 @@ def get_publication_date_range():
     On Monday or Tuesday, go back exactly 7 days.
     """
     today       = datetime.now(UK_TIMEZONE).date()
-    day_of_week = today.weekday()   # 0 = Monday … 6 = Sunday
+    #day_of_week = today.weekday()   # 0 = Monday … 6 = Sunday
 
-    if day_of_week >= 2:            # Wed, Thu, Fri, Sat, Sun
+    #if day_of_week >= 2:            # Wed, Thu, Fri, Sat, Sun
         # Go back to the Monday of the PREVIOUS week
-        publication_start = today - timedelta(days=day_of_week + 7)
-    else:                           # Mon, Tue
-        publication_start = today - timedelta(days=7)
+    #    publication_start = today - timedelta(days=day_of_week + 7)
+    #else:                           # Mon, Tue
+    #    publication_start = today - timedelta(days=7)
    
     #Temporarily relax the publication date filter to capture more tenders for testing    
     publication_start = today - timedelta(days=5)
