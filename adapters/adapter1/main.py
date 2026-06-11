@@ -42,7 +42,7 @@ def main():
 
         # Step 2: Scrape tender listings
         logger.info("\n[2/6] Scraping tender listings...")
-        tender_summaries = scraper.scrape()
+        tender_summaries = scraper.scrape(run_ts=run_ts)
 
         if not tender_summaries:
             logger.warning("No tenders found matching criteria")

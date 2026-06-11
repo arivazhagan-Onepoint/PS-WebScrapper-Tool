@@ -149,8 +149,9 @@ class TenderScraper:
         uuid_part = '-'.join(parts[:5]) if len(parts) > 5 else notice_id
         return f"{PORTAL_URL}/{uuid_part}"
 
-    def scrape(self):
+    def scrape(self, run_ts):
         """Fetch and filter tenders from the Contracts Finder OCDS API."""
+        self._scrape_ts = datetime.fromisoformat(run_ts).strftime('%Y%m%d_%H%M%S')
         pub_start, pub_end = get_publication_date_range()
         due_start = get_due_date_range()
 
@@ -169,8 +170,7 @@ class TenderScraper:
         # Write raw API extract to extract_json folder
         extract_dir = os.path.join(BASE_DIR, 'extract_json')
         os.makedirs(extract_dir, exist_ok=True)
-        timestamp = datetime.now(UK_TIMEZONE).strftime('%Y%m%d_%H%M%S')
-        extract_path = os.path.join(extract_dir, f"extract_{timestamp}.json")
+        extract_path = os.path.join(extract_dir, f"extract_{self._scrape_ts}.json")
         with open(extract_path, 'w', encoding='utf-8') as f:
             json.dump(all_releases, f, indent=2, ensure_ascii=False)
         logger.info(f"Raw API extract written to: {extract_path}")

@@ -42,8 +42,7 @@ class TenderScraper:
                     # Always save raw response for future troubleshooting
                     debug_dir = os.path.join(BASE_DIR, 'extract_json')
                     os.makedirs(debug_dir, exist_ok=True)
-                    ts = datetime.now(UK_TIMEZONE).strftime('%Y%m%d_%H%M%S')
-                    debug_path = os.path.join(debug_dir, f"malformed_{ts}.txt")
+                    debug_path = os.path.join(debug_dir, f"malformed_{self._scrape_ts}.txt")
                     with open(debug_path, 'w', encoding='utf-8') as f:
                         f.write(raw)
                     logger.warning(f"Malformed JSON saved to: {debug_path}")
@@ -172,8 +171,9 @@ class TenderScraper:
         notice_id = release.get('id', '')
         return f"{PORTAL_URL}/{notice_id}"
 
-    def scrape(self):
+    def scrape(self, run_ts):
         """Fetch and filter tenders from the FTS OCDS API."""
+        self._scrape_ts = datetime.fromisoformat(run_ts).strftime('%Y%m%d_%H%M%S')
         pub_start, pub_end = get_publication_date_range()
         due_start = get_due_date_range()
 
@@ -192,8 +192,7 @@ class TenderScraper:
         # Write raw API extract to extract_json folder
         extract_dir = os.path.join(BASE_DIR, 'extract_json')
         os.makedirs(extract_dir, exist_ok=True)
-        timestamp = datetime.now(UK_TIMEZONE).strftime('%Y%m%d_%H%M%S')
-        extract_path = os.path.join(extract_dir, f"extract_{timestamp}.json")
+        extract_path = os.path.join(extract_dir, f"extract_{self._scrape_ts}.json")
         with open(extract_path, 'w', encoding='utf-8') as f:
             json.dump(all_releases, f, indent=2, ensure_ascii=False)
         logger.info(f"Raw API extract written to: {extract_path}")
