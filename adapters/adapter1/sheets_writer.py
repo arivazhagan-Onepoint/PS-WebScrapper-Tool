@@ -43,6 +43,14 @@ CHANGE_FIELDS = [
     ('Locality',              'Locality',     None),
 ]
 
+ROW_COLORS = {
+    'green':      {'red': 0.20, 'green': 0.74, 'blue': 0.39},
+    'light_grey': {'red': 0.85, 'green': 0.85, 'blue': 0.85},
+    'amber':      {'red': 1.00, 'green': 0.75, 'blue': 0.00},
+    'red':        {'red': 0.90, 'green': 0.20, 'blue': 0.20},
+    'yellow':     {'red': 1.00, 'green': 0.95, 'blue': 0.20},
+}
+
 
 def dedup_by_ocid(tenders):
     """For tenders sharing the same OCID, keep only the one with the latest Published On date."""
@@ -458,6 +466,36 @@ class SheetsWriter:
             return self.existing_ocid_rows[ocid]
         return None
 
+    def _apply_row_colors(self, row_color_map):
+        """Apply background color to entire rows in one batchUpdate call."""
+        if not row_color_map:
+            return
+        requests = []
+        for row_num, color in row_color_map.items():
+            requests.append({
+                'repeatCell': {
+                    'range': {
+                        'sheetId': self.sheet_tab_id,
+                        'startRowIndex': row_num - 1,
+                        'endRowIndex': row_num,
+                        'startColumnIndex': 0,
+                        'endColumnIndex': len(DATASET_FIELDS)
+                    },
+                    'cell': {
+                        'userEnteredFormat': {
+                            'backgroundColor': color
+                        }
+                    },
+                    'fields': 'userEnteredFormat.backgroundColor'
+                }
+            })
+        self._execute_with_retry(
+            lambda: self.sheets_service.spreadsheets().batchUpdate(
+                spreadsheetId=self.sheet_id,
+                body={'requests': requests}
+            ).execute()
+        )
+        logger.info(f"Applied row background colors to {len(requests)} row(s)")
 
     def write_batch(self, tenders, run_ts):
         """Append new tenders and update existing ones in the sheet."""
@@ -469,8 +507,10 @@ class SheetsWriter:
         tenders = dedup_by_ocid(tenders)
 
         new_rows = []
-        updates = []       # list of (row_number, row_values) for existing records
-        seen_in_batch = {} # url/id -> first-seen tender, to dedup within the batch
+        new_row_statuses = []      # Tender Status per new row (parallel to new_rows)
+        updates = []               # list of (row_number, row_values) for existing records
+        updated_row_statuses = {}  # row_num -> Tender Status for updated records
+        seen_in_batch = {}         # ocid -> True, to dedup within the batch
 
         for tender in tenders:
             try:
@@ -498,10 +538,15 @@ class SheetsWriter:
                     ts = datetime.fromisoformat(now).strftime('%Y-%m-%d %H:%M')
                     existing_data = self.existing_row_data.get(existing_row, {})
                     tender['Created Date'] = existing_data.get('Created Date') or now
-                    # If the sheet holds a manually set status (not a system value),
-                    # restore it and leave Status Date untouched — do not overwrite.
                     old_status = str(existing_data.get('Tender Status', '')).strip()
-                    if old_status not in SYSTEM_STATUSES:
+                    if old_status == 'NoBid':
+                        # Special transition: NoBid appearing in current run → ReCheck
+                        tender['Tender Status'] = 'ReCheck'
+                        tender['Tender Status Date'] = today
+                        tender['Tender Status Reason'] = ''
+                        logger.info(f"NoBid → ReCheck for OCID {tender_ocid} | Status Date set to {today}")
+                    elif old_status not in SYSTEM_STATUSES:
+                        # Other manual overrides: preserve as-is
                         tender['Tender Status'] = old_status
                         tender['Tender Status Date'] = existing_data.get('Tender Status Date', '')
                         tender['Tender Status Reason'] = existing_data.get('Tender Status Reason', '')
@@ -524,6 +569,7 @@ class SheetsWriter:
                     tender['Comments'] = (prior + '\n' + diff) if prior else diff
                     row_values = [tender.get(field, '') for field in DATASET_FIELDS]
                     updates.append((existing_row, row_values))
+                    updated_row_statuses[existing_row] = str(tender.get('Tender Status', '')).strip()
                 else:
                     # New record: append qualify comment to first-scraped + SC check comments
                     prior = tender.get('Comments', '')
@@ -534,10 +580,13 @@ class SheetsWriter:
                     tender['Created Date'] = now
                     row_values = [tender.get(field, '') for field in DATASET_FIELDS]
                     new_rows.append(row_values)
+                    new_row_statuses.append(str(tender.get('Tender Status', '')).strip())
 
             except Exception as e:
                 logger.error(f"Error preparing tender: {e}")
                 results['errors'] += 1
+
+        row_color_map = {}
 
         # Append new records in one API call
         new_format_pairs = []
@@ -554,13 +603,18 @@ class SheetsWriter:
                 )
                 results['written'] = len(new_rows)
                 logger.info(f"Appended {len(new_rows)} new tenders")
-                # Determine which rows were written so we can apply comment formatting
                 updated_range = append_response.get('updates', {}).get('updatedRange', '')
                 row_match = re.search(r'!A(\d+):', updated_range)
                 if row_match:
                     start_row = int(row_match.group(1))
                     comments_idx = DATASET_FIELDS.index('Comments')
                     new_format_pairs = [(start_row + i, row[comments_idx]) for i, row in enumerate(new_rows)]
+                    for i, status in enumerate(new_row_statuses):
+                        row_num = start_row + i
+                        if status == 'PreQualified':
+                            row_color_map[row_num] = ROW_COLORS['green']
+                        elif status == 'NotQualified':
+                            row_color_map[row_num] = ROW_COLORS['light_grey']
             except HttpError as e:
                 logger.error(f"Error appending new tenders: {e}")
                 results['errors'] += len(new_rows)
@@ -589,12 +643,32 @@ class SheetsWriter:
                 logger.info(f"Updated {len(updates)} existing tenders")
                 comments_idx = DATASET_FIELDS.index('Comments')
                 update_format_pairs = [(row_num, row_values[comments_idx]) for row_num, row_values in updates]
+                for row_num, status in updated_row_statuses.items():
+                    if status == 'PreQualified':
+                        row_color_map[row_num] = ROW_COLORS['green']
+                    elif status == 'NotQualified':
+                        row_color_map[row_num] = ROW_COLORS['light_grey']
+                    elif status == 'ReCheck':
+                        row_color_map[row_num] = ROW_COLORS['yellow']
             except HttpError as e:
                 logger.error(f"Error updating existing tenders: {e}")
                 results['errors'] += len(updates)
 
+        # Color stale rows — adapter rows in sheet not touched in this run
+        processed_ocids = set(seen_in_batch.keys())
+        for ocid, row_num in self.existing_ocid_rows.items():
+            if ocid not in processed_ocids:
+                stale_status = self.existing_row_data.get(row_num, {}).get('Tender Status', '')
+                if stale_status == 'PreQualified':
+                    row_color_map[row_num] = ROW_COLORS['amber']
+                elif stale_status == 'NoBid':
+                    row_color_map[row_num] = ROW_COLORS['red']
+
         # Apply italic + colour formatting to reason text in Comments cells
         self._apply_comment_formatting(new_format_pairs + update_format_pairs)
+
+        # Apply row background colors
+        self._apply_row_colors(row_color_map)
 
         logger.info(f"Batch write results: {results}")
         return results
