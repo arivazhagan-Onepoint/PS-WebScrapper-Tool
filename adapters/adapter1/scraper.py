@@ -6,7 +6,7 @@ import time
 import requests
 from .config import (
     FTS_API_BASE, FTS_API_KEY, PORTAL_URL, PORTAL_NAME,
-    CPV_CODES, SUITABLE_FOR_SMES, EXCLUDED_STATUSES, INCLUDED_COUNTRIES, KEYWORDS,
+    CPV_CODES, SUITABLE_FOR_SMES, EXCLUDED_STATUSES, EXCLUDED_TAGS, INCLUDED_COUNTRIES, KEYWORDS,
     get_publication_date_range, get_due_date_range, UK_TIMEZONE, BASE_DIR
 )
 from datetime import datetime
@@ -184,6 +184,7 @@ class TenderScraper:
         logger.info(f"  CPV Codes             : {', '.join(CPV_CODES)}")
         logger.info(f"  Suitable for SMEs     : {SUITABLE_FOR_SMES}")
         logger.info(f"  Excluded Statuses     : {', '.join(EXCLUDED_STATUSES)}")
+        logger.info(f"  Excluded Tags         : {', '.join(sorted(EXCLUDED_TAGS))}")
         logger.info(f"  Included Countries    : {', '.join(INCLUDED_COUNTRIES) if INCLUDED_COUNTRIES else 'All'}")
         logger.info(f"  Keywords ({len(KEYWORDS)})         : {', '.join(KEYWORDS)}")
 
@@ -216,6 +217,11 @@ class TenderScraper:
             if release.get('tender', {}).get('status') in EXCLUDED_STATUSES:
                 filter_counts['status_complete'] += 1
                 logger.debug(f"  [SKIP-STATUS]     {notice_id} | {title}")
+                continue
+
+            if EXCLUDED_TAGS.intersection(release.get('tag', [])):
+                filter_counts['status_complete'] += 1
+                logger.debug(f"  [SKIP-TAG]        {notice_id} | {title} | tags={release.get('tag', [])}")
                 continue
 
             if not self.matches_cpv(release):

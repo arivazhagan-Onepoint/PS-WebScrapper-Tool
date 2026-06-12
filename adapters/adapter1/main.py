@@ -97,10 +97,10 @@ def main():
         pre_qualified = 0
         for tender in detailed_tenders:
             status, reason = parser.qualify_tender(tender)
-            tender['Tender Status'] = status
-            tender['Tender Status Reason'] = reason if status == 'NotQualified' else ''
+            tender['Bid Qualification'] = status
+            tender['Bid Qualification Reason'] = reason if status == 'NotQualified' else ''
             ts = datetime.fromisoformat(run_ts).strftime('%Y-%m-%d %H:%M')
-            tender['_qualify_comment'] = f"[{ts}] Tender Status: {status} | {reason}"
+            tender['_qualify_comment'] = f"[{ts}] Bid Qualification: {status} | {reason}"
             if status == 'PreQualified':
                 pre_qualified += 1
         logger.info(f"Qualification complete: {pre_qualified} PreQualified | {len(detailed_tenders) - pre_qualified} NotQualified")

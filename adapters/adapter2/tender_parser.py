@@ -37,8 +37,8 @@ class TenderParser:
                 'Tender Description':    tender.get('description', ''),
                 'Buyer Name':            self._buyer_name(release),
                 'Suitable for SMEs?':    self._sme_flag(tender),
-                'Tender Status':         tender.get('status', ''),
-                'Tender Status Date':    self._status_date(release),
+                'Bid Qualification':         tender.get('status', ''),
+                'Bid Qualification Date':    self._status_date(release),
                 'Processed Date':        self.run_ts,
                 'Comments':              '',
                 'Last Modified Date':    '',
@@ -61,7 +61,7 @@ class TenderParser:
                 f"Value: {tender_data['Total Contract Value'] or '-'} | "
                 f"Duration: {tender_data['Contract Duration'] or '-'} | "
                 f"SME: {tender_data['Suitable for SMEs?']} | "
-                f"Status: {tender_data['Tender Status'] or '-'} | "
+                f"Status: {tender_data['Bid Qualification'] or '-'} | "
                 f"Buyer: {tender_data['Buyer Name'][:40] or '-'}"
             )
             return tender_data
@@ -177,7 +177,7 @@ class TenderParser:
             ('Due',    'Tender Due Date'),
             ('Val',    'Total Contract Value'),
             ('Stage',  'Procurement Stage'),
-            ('Status', 'Tender Status'),
+            ('Status', 'Bid Qualification'),
             ('SME',    'Suitable for SMEs?'),
             ('Buyer',  'Buyer Name'),
         ]:
@@ -209,12 +209,9 @@ class TenderParser:
         return self._format_date(raw)
 
     def _notice_id(self, release, url=''):
-        notice_id = release.get('id', '')
-        if notice_id:
-            # CF OCDS appends a sequence suffix to the UUID (e.g. {uuid}-900679).
-            # Strip it so the ID matches the portal URL.
-            parts = notice_id.split('-')
-            return '-'.join(parts[:5]) if len(parts) > 5 else notice_id
+        tender_id = release.get('tender', {}).get('id', '')
+        if tender_id:
+            return tender_id
         url_match = re.search(r'/Notice/([^/?#]+)', url, re.IGNORECASE)
         return url_match.group(1) if url_match else 'Unknown'
 

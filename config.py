@@ -36,7 +36,8 @@ CPV_CODES = [
 ]
 
 SUITABLE_FOR_SMES    = True
-EXCLUDED_STATUSES    = ['complete']
+EXCLUDED_STATUSES    = ['complete', 'cancelled', 'withdrawn']
+EXCLUDED_TAGS        = {'award', 'contract', 'awardUpdate', 'contractTermination', 'implementation'}
 INCLUDED_COUNTRIES   = ['United Kingdom']
 
 KEYWORDS = [
@@ -87,12 +88,15 @@ DATASET_FIELDS = [
     "Portal Name",
     "Adapter",
     "Direct URL",
-    "Published On",
     "ID",
     "OCID",
     "Name",
-    "Tender Due Date",
+    "Bid Qualification",
+    "Bid Qualification Reason",
+    "Published On",
     "Clarification Due Date",
+    "Tender Due Date",
+    "Bid Qualification Date",
     "Procurement Stage",
     "Total Contract Value",
     "Contract Duration",
@@ -105,9 +109,6 @@ DATASET_FIELDS = [
     "Country",
     "Locality",
     "Suitable for SMEs?",
-    "Tender Status",
-    "Tender Status Date",
-    "Tender Status Reason",
     "Comments",
     "Processed Date",
     "Last Modified Date",

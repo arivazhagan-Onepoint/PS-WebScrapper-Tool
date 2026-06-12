@@ -26,7 +26,7 @@ LAST_COL = _col_letter(len(DATASET_FIELDS))
 # Fields compared between old and new to detect meaningful changes.
 # Tuple format: (dataset field name, short label for comment, max chars or None)
 CHANGE_FIELDS = [
-    ('Tender Status',         'Status',       None),
+    ('Bid Qualification',         'Status',       None),
     ('Total Contract Value',  'Value',        None),
     ('Contract Duration',     'Duration',     None),
     ('Tender Due Date',        'Due',          None),
@@ -374,7 +374,7 @@ class SheetsWriter:
                     old = (old[:max_len] + '…') if len(old) > max_len else old
                     new = (new[:max_len] + '…') if len(new) > max_len else new
                 entry = f"{label}: {old or '-'} -> {new}"
-                if field == 'Tender Status' and status_reason:
+                if field == 'Bid Qualification' and status_reason:
                     entry += f" ({status_reason})"
                 changes.append(entry)
         if changes:
@@ -389,7 +389,7 @@ class SheetsWriter:
         """Return textFormatRuns to italicise and colour the qualification reason text.
 
         Detects two line patterns:
-          • [ts] Tender Status: STATUS | REASON
+          • [ts] Bid Qualification: STATUS | REASON
           • [ts] Updated | Status: old -> new (REASON)
         Colours green for PreQualified lines, red for NotQualified lines.
         """
@@ -403,7 +403,7 @@ class SheetsWriter:
             else:
                 colour = None
 
-            if 'Tender Status:' in line and ' | ' in line:
+            if 'Bid Qualification:' in line and ' | ' in line:
                 reason_pos = line.rfind(' | ') + 3
                 italic_ranges.append((pos + reason_pos, pos + len(line), colour))
             elif 'Status:' in line and '->' in line:
@@ -507,9 +507,9 @@ class SheetsWriter:
         tenders = dedup_by_ocid(tenders)
 
         new_rows = []
-        new_row_statuses = []      # Tender Status per new row (parallel to new_rows)
+        new_row_statuses = []      # Bid Qualification per new row (parallel to new_rows)
         updates = []               # list of (row_number, row_values) for existing records
-        updated_row_statuses = {}  # row_num -> Tender Status for updated records
+        updated_row_statuses = {}  # row_num -> Bid Qualification for updated records
         seen_in_batch = {}         # ocid -> True, to dedup within the batch
 
         for tender in tenders:
@@ -538,27 +538,27 @@ class SheetsWriter:
                     ts = datetime.fromisoformat(now).strftime('%Y-%m-%d %H:%M')
                     existing_data = self.existing_row_data.get(existing_row, {})
                     tender['Created Date'] = existing_data.get('Created Date') or now
-                    old_status = str(existing_data.get('Tender Status', '')).strip()
+                    old_status = str(existing_data.get('Bid Qualification', '')).strip()
                     if old_status == 'NoBid':
                         # Special transition: NoBid appearing in current run → ReCheck
-                        tender['Tender Status'] = 'ReCheck'
-                        tender['Tender Status Date'] = today
-                        tender['Tender Status Reason'] = ''
+                        tender['Bid Qualification'] = 'ReCheck'
+                        tender['Bid Qualification Date'] = today
+                        tender['Bid Qualification Reason'] = ''
                         logger.info(f"NoBid → ReCheck for OCID {tender_ocid} | Status Date set to {today}")
                     elif old_status not in SYSTEM_STATUSES:
                         # Other manual overrides: preserve as-is
-                        tender['Tender Status'] = old_status
-                        tender['Tender Status Date'] = existing_data.get('Tender Status Date', '')
-                        tender['Tender Status Reason'] = existing_data.get('Tender Status Reason', '')
+                        tender['Bid Qualification'] = old_status
+                        tender['Bid Qualification Date'] = existing_data.get('Bid Qualification Date', '')
+                        tender['Bid Qualification Reason'] = existing_data.get('Bid Qualification Reason', '')
                         logger.info(f"Preserving manual status '{old_status}' for OCID {tender_ocid} - qualification not applied")
                     else:
                         # System status — apply qualification and stamp Status Date on change
-                        new_status = str(tender.get('Tender Status', '')).strip()
+                        new_status = str(tender.get('Bid Qualification', '')).strip()
                         if new_status and new_status != old_status:
-                            tender['Tender Status Date'] = today
+                            tender['Bid Qualification Date'] = today
                             logger.info(f"Status changed for OCID {tender_ocid}: '{old_status}' -> '{new_status}' | Status Date set to {today}")
                         else:
-                            tender['Tender Status Date'] = existing_data.get('Tender Status Date', '')
+                            tender['Bid Qualification Date'] = existing_data.get('Bid Qualification Date', '')
                     # Build comments: existing sheet comments + change diff (reason inlined on status change)
                     status_reason = qualify_comment.split(' | ', 1)[-1] if qualify_comment else ''
                     diff = self._build_update_comment(tender, existing_data, ts, status_reason)
@@ -569,18 +569,18 @@ class SheetsWriter:
                     tender['Comments'] = (prior + '\n' + diff) if prior else diff
                     row_values = [tender.get(field, '') for field in DATASET_FIELDS]
                     updates.append((existing_row, row_values))
-                    updated_row_statuses[existing_row] = str(tender.get('Tender Status', '')).strip()
+                    updated_row_statuses[existing_row] = str(tender.get('Bid Qualification', '')).strip()
                 else:
                     # New record: append qualify comment to first-scraped + SC check comments
                     prior = tender.get('Comments', '')
                     tender['Comments'] = (prior + '\n' + qualify_comment) if prior else qualify_comment
-                    # Stamp Tender Status Date, Created Date, and Last Modified Date
-                    tender['Tender Status Date'] = today
+                    # Stamp Bid Qualification Date, Created Date, and Last Modified Date
+                    tender['Bid Qualification Date'] = today
                     tender['Last Modified Date'] = now
                     tender['Created Date'] = now
                     row_values = [tender.get(field, '') for field in DATASET_FIELDS]
                     new_rows.append(row_values)
-                    new_row_statuses.append(str(tender.get('Tender Status', '')).strip())
+                    new_row_statuses.append(str(tender.get('Bid Qualification', '')).strip())
 
             except Exception as e:
                 logger.error(f"Error preparing tender: {e}")
@@ -658,7 +658,7 @@ class SheetsWriter:
         processed_ocids = set(seen_in_batch.keys())
         for ocid, row_num in self.existing_ocid_rows.items():
             if ocid not in processed_ocids:
-                stale_status = self.existing_row_data.get(row_num, {}).get('Tender Status', '')
+                stale_status = self.existing_row_data.get(row_num, {}).get('Bid Qualification', '')
                 if stale_status == 'PreQualified':
                     row_color_map[row_num] = ROW_COLORS['amber']
                 elif stale_status == 'NoBid':
