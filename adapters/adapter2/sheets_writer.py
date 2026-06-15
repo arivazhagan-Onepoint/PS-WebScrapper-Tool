@@ -34,11 +34,12 @@ CHANGE_FIELDS = [
     ('Procurement Stage',     'Stage',        50),
     ('Buyer Name',            'Buyer',        50),
     ('Annual Contract Value', 'Annual',       None),
+    ('PME_Flag',              'PME_Flag',     None),
     ('SC_Flag',               'SC_Flag',      None),
     ('Name',                  'Name',         60),
     ('Published On',          'Published',    None),
     ('CPV Code',              'CPV',          60),
-    ('Suitable for SMEs?',    'SME',          None),
+    ('SME_Flag',    'SME',          None),
     ('Country',               'Country',      None),
     ('Locality',              'Locality',     None),
 ]

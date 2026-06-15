@@ -30,13 +30,14 @@ class TenderParser:
                 'Name':                  tender.get('title', ''),
                 'Tender Due Date':       self._format_date(self._due_date(tender, release)),
                 'Clarification Due Date': self._format_date(tender.get('enquiryPeriod', {}).get('endDate', '')),
+                'PME_Flag':              self._pme_flag(self._procurement_stage(release)),
                 'Procurement Stage':     self._procurement_stage(release),
                 'Total Contract Value':  self._value(tender, release),
                 'Contract Duration':     self._duration(tender, release),
                 'Annual Contract Value': self._annual_value(tender, self._value(tender, release), release),
                 'Tender Description':    tender.get('description', ''),
                 'Buyer Name':            self._buyer_name(release),
-                'Suitable for SMEs?':    self._sme_flag(tender),
+                'SME_Flag':    self._sme_flag(tender),
                 'Bid Qualification':         tender.get('status', ''),
                 'Bid Qualification Date':    self._status_date(release),
                 'Processed Date':        self.run_ts,
@@ -60,7 +61,7 @@ class TenderParser:
                 f"Stage: {tender_data['Procurement Stage'][:30] or '-'} | "
                 f"Value: {tender_data['Total Contract Value'] or '-'} | "
                 f"Duration: {tender_data['Contract Duration'] or '-'} | "
-                f"SME: {tender_data['Suitable for SMEs?']} | "
+                f"SME: {tender_data['SME_Flag']} | "
                 f"Status: {tender_data['Bid Qualification'] or '-'} | "
                 f"Buyer: {tender_data['Buyer Name'][:40] or '-'}"
             )
@@ -136,6 +137,9 @@ class TenderParser:
 
         return 'PreQualified', reason
 
+    def _pme_flag(self, stage):
+        return 'Yes' if 'planning' in stage.lower() else 'No'
+
     def _procurement_stage(self, release):
         tags = release.get('tag', [])
         initiation = release.get('initiationType', '')
@@ -182,7 +186,7 @@ class TenderParser:
             ('Val',    'Total Contract Value'),
             ('Stage',  'Procurement Stage'),
             ('Status', 'Bid Qualification'),
-            ('SME',    'Suitable for SMEs?'),
+            ('SME',    'SME_Flag'),
             ('Buyer',  'Buyer Name'),
         ]:
             val = str(td.get(key, '')).strip()
