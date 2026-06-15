@@ -84,7 +84,7 @@ def main():
             existing_comments = tender.get('Comments', '')
             tender['Comments'] = (existing_comments + '\n' + sc_comment) if existing_comments else sc_comment
 
-            if sc_flag == 'True':
+            if sc_flag == 'Yes':
                 sc_found_count += 1
 
         logger.info(f"SC check complete: {sc_found_count}/{len(detailed_tenders)} tenders flagged")

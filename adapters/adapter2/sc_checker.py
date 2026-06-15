@@ -49,7 +49,7 @@ class SCChecker:
         Fetch the portal page for ``url`` and scan for security clearance requirements.
 
         Returns a tuple (sc_flag, comment):
-          sc_flag — 'True' if any clearance term found, 'False' if page loaded
+          sc_flag — 'Yes' if any clearance term found, 'No' if page loaded
                     but no terms found, 'TBD' if page could not be fetched.
           comment — timestamped human-readable explanation.
         """
@@ -68,10 +68,10 @@ class SCChecker:
         if found:
             detail = ', '.join(found)
             logger.info(f'SC check FOUND [{url}]: {detail}')
-            return 'True', f'[{ts}] SC check: FOUND — {detail}'
+            return 'Yes', f'[{ts}] SC check: FOUND — {detail}'
 
         logger.info(f'SC check CLEAR [{url}]')
-        return 'False', f'[{ts}] SC check: No security clearance requirement mentioned on portal page'
+        return 'No', f'[{ts}] SC check: No security clearance requirement mentioned on portal page'
 
     def _fetch(self, url, max_retries=3):
         """HTTP GET with courtesy delay and retry on transient errors."""
