@@ -56,7 +56,7 @@ def get_publication_date_range():
 def get_due_date_range():
     """Returns due_start: tenders closing within the configured UK working days are excluded."""
     today = datetime.now(UK_TIMEZONE).date()
-    uk_holidays = _holidays.UnitedKingdom()
+    uk_holidays = _holidays.UnitedKingdom(subdiv="ENG")
     count = 0
     d = today
     while count < _due_days:
