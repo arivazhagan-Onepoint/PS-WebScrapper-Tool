@@ -1,7 +1,7 @@
 {
   "google_sheets": {
-    "environment": "Test",
-    "target_folder_id": "1aiPU1PVU-xVgka5jB1XVQcZFwH2xT8AM",
+    "environment": "Trial",
+    "target_folder_id": "1sFREkEsaedTc1voiO7QYwwTJtbtd7tHc",
     "sheet_name": "PS Tender Tracker"
   }
 }
