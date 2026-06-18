@@ -35,7 +35,7 @@ class TenderParser:
                 'Total Contract Value':  self._value(tender, release),
                 'Contract Duration':     self._duration(tender, release),
                 'Annual Contract Value': self._annual_value(tender, self._value(tender, release), release),
-                'Tender Description':    tender.get('description', ''),
+                'Tender Description':    self._build_description(tender),
                 'Buyer Name':            self._buyer_name(release),
                 'SME_Flag':    self._sme_flag(tender),
                 'Bid Qualification':         tender.get('status', ''),
@@ -193,6 +193,22 @@ class TenderParser:
             if val:
                 parts.append(f"{label}:{val[:40]}")
         return ' | '.join(parts)
+
+    def _build_description(self, tender):
+        """Combine the tender-level description with per-lot titles and descriptions."""
+        base = tender.get('description', '').strip()
+        lots = [l for l in tender.get('lots', []) if l.get('title') or l.get('description')]
+        if not lots:
+            return base
+        lot_parts = []
+        for lot in lots:
+            lot_id = lot.get('id', '')
+            title  = lot.get('title', '').strip()
+            desc   = lot.get('description', '').strip()
+            header = f"Lot {lot_id}: {title}" if lot_id and title else (title or f"Lot {lot_id}")
+            lot_parts.append(f"{header}\n{desc}" if desc else header)
+        lots_block = 'Lots:\n' + '\n\n'.join(lot_parts)
+        return f"{base}\n\n{lots_block}" if base else lots_block
 
     def _due_date(self, tender, release):
         """Return the best available due date using four fallback priorities:
