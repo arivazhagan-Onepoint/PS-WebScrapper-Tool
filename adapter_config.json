@@ -40,7 +40,14 @@
           "Proof of Value", "PoV", "Rapid Prototyping", "Discovery Phase", "Valuepath", "Agile Delivery", "De-risking",
           "SME", "Ethnic Minority Business", "EMB", "Social Value", "Net Zero", "Living Wage", "Disability Confident",
           "S1000D", "Defence", "Aerospace", "Healthcare", "Data", "Digital", "Personalisation",
-          "Clinical Information", "Public Sector Transformation"
+          "Clinical Information", "Public Sector Transformation", "Data Transformation", "Data Lake", "Cloud Data Warehouse", 
+          "Data Migration", "Data Lineage", "Data Traceability", "ETL", "ELT", "Extract", "Transform", "Load", "Master Data Hub", 
+          "Data Ingestion", "Enterprise Architecture", "Data Platform", "Proof of Concept", "iPaaS", "Integration Platform as a Service", 
+          "API Gateway", "Systems Integration", "Enterprise Integration", "Electronic Data Interchange", "Middleware Application Management", 
+          "API Lifecycle", "Middleware Management", "Cloud-native Application Development", "B2B Integration", "Solution Architecture", "Agentic AI", 
+          "Autonomous Agents", "Retrieval-Augmented Generation", "RAG", "Document Conversion", "Unstructured Data Extraction", "Legacy Modernisation", 
+          "Legacy Decommissioning", "Predictive Analytics", "Intelligent Document Processing", "langchain", "langgraph", "Snowflake", "Power Platform", 
+          "Power Automate", "Power Apps", "Power BI", "Cloud Strategy", "Multi-Cloud Strategy", "Cloud Architecture"
         ]
       },
       "date_windows": {
@@ -92,7 +99,14 @@
           "Proof of Value", "PoV", "Rapid Prototyping", "Discovery Phase", "Valuepath", "Agile Delivery", "De-risking",
           "SME", "Ethnic Minority Business", "EMB", "Social Value", "Net Zero", "Living Wage", "Disability Confident",
           "S1000D", "Defence", "Aerospace", "Healthcare", "Data", "Digital", "Personalisation",
-          "Clinical Information", "Public Sector Transformation"
+          "Clinical Information", "Public Sector Transformation", "Data Transformation", "Data Lake", "Cloud Data Warehouse", 
+          "Data Migration", "Data Lineage", "Data Traceability", "ETL", "ELT", "Extract", "Transform", "Load", "Master Data Hub", 
+          "Data Ingestion", "Enterprise Architecture", "Data Platform", "Proof of Concept", "iPaaS", "Integration Platform as a Service", 
+          "API Gateway", "Systems Integration", "Enterprise Integration", "Electronic Data Interchange", "Middleware Application Management", 
+          "API Lifecycle", "Middleware Management", "Cloud-native Application Development", "B2B Integration", "Solution Architecture", "Agentic AI", 
+          "Autonomous Agents", "Retrieval-Augmented Generation", "RAG", "Document Conversion", "Unstructured Data Extraction", "Legacy Modernisation", 
+          "Legacy Decommissioning", "Predictive Analytics", "Intelligent Document Processing", "langchain", "langgraph", "Snowflake", "Power Platform", 
+          "Power Automate", "Power Apps", "Power BI", "Cloud Strategy", "Multi-Cloud Strategy", "Cloud Architecture"
         ]
       },
       "date_windows": {
