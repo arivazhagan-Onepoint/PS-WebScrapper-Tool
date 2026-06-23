@@ -2,6 +2,157 @@
 
 ---
 
+## v2.1.0 — 2026-06-23
+
+**Config restructure, GCP service account auth, expanded keywords, enriched descriptions, column renames, and sheet color logic improvements.**
+
+---
+
+### Overview
+
+v2.1.0 consolidates configuration into two split JSON files, removes the interactive OAuth flow in favour of a GCP service account, extends keyword coverage, and tightens filtering and column naming throughout both adapters. The sheet colour logic is overhauled so NoBid→ReCheck only fires on real data changes, and a new PME_Flag column is introduced alongside a rename of the SME field.
+
+---
+
+### Breaking Changes
+
+- **Config files changed** — `config.json` is deleted. Adapter settings now live in `adapter_config.json`; sheet/folder settings in `project_config.json`. Per-environment variants (`project_config_dev.json`, `project_config_trial.json`) are ignored by `.gitignore`.
+- **Authentication changed** — OAuth 2.0 browser flow and `ps_tender_token.json` are removed. Both adapters now authenticate via `credentials/service_account.json` (GCP service account key).
+- **Column renames** — `Tender Status` → `Bid Qualification`, `Tender Status Date` → `Bid Qualification Date`, `Tender Status Reason` → `Bid Qualification Reason`, `Suitable for SMEs?` → `SME_Flag`. Existing sheets are migrated automatically by `_ensure_columns_match()`.
+- **SC_Flag values** — changed from `True`/`False` to `Yes`/`No`.
+- **New column: PME_Flag** — inserted into the dataset schema; existing sheets gain this column automatically on first run.
+
+---
+
+### New Features
+
+#### GCP Service Account Authentication
+- Browser-based OAuth flow removed from both adapters' `google_sheets_auth.py`
+- Both adapters now build credentials from `credentials/service_account.json` using `google.oauth2.service_credentials`
+- Supports fully headless and scheduled runs with no interactive login step
+- `ps_tender_token.json` token file no longer created or required
+
+#### Split Configuration Files
+- `adapter_config.json` — adapter registry merged with per-adapter filters, keywords, CPV codes, date windows, qualification thresholds, and API key
+- `project_config.json` — Google Sheets folder ID and sheet name (environment-specific variants: `project_config_dev.json`, `project_config_trial.json`)
+- Root `config.py` now only loads project-level settings; adapter constants removed from root
+- Each adapter's `config.py` loads its own section from `adapter_config.json` and defines its own date range functions
+- `config.json` deleted; both parsers source `PLANNING_THRESHOLD` and `TENDER_THRESHOLD` from config instead of hardcoded values
+
+#### Expanded Keyword List (~30 new terms)
+- **Data Engineering** — `ETL`, `ELT`, `Data Lake`, `Data Lakehouse`, `Data Mesh`, `Snowflake`, `Databricks`, `dbt`, `Apache Spark`
+- **Cloud & Integration** — `iPaaS`, `Middleware`, `MuleSoft`, `Azure Integration Services`, `AWS Glue`, `Event-driven Architecture`
+- **Agentic AI** — `RAG`, `Retrieval-Augmented Generation`, `LangChain`, `LlamaIndex`, `Agentic AI`, `AI Agents`
+- **Power Platform** — `Power BI`, `Power Automate`, `Power Apps`, `Copilot Studio`
+- **Legacy Modernisation** — `Legacy Modernisation`, `Application Rationalisation`, `Technical Debt`
+- Keywords precompiled as `\b`-bounded regex patterns in each adapter's `config.py`
+
+#### Word-Boundary Keyword Matching
+- Replaced bare `in` substring check with precompiled `re.compile(r'\b<keyword>\b', re.IGNORECASE)` in both adapters' `scraper.py`
+- Eliminates false positives from short abbreviations (e.g. `EMB` previously matched inside "members")
+- Patterns compiled once at module load; no per-tender recompilation overhead
+
+#### PME_Flag Column
+- New `PME_Flag` field: `Yes` when `Procurement Stage` contains `planning` (covers `planning` and `planningUpdate` OCDS tags), `No` otherwise
+- Tracked in `CHANGE_FIELDS` alongside `SME_Flag` for change detection on re-scrape
+
+#### Enriched Tender Description
+- New `_build_description()` helper in both `tender_parser.py` files
+- Appends each lot's title and description beneath the base `tender.description` text
+- Increases description coverage from ~2 k to ~20 k characters for multi-lot tenders
+
+#### EXCLUDED_TAGS Filter
+- New `EXCLUDED_TAGS` set in both adapters' `scraper.py`: filters out `award`, `contract`, `awardUpdate`, `contractTermination`, `implementation` releases at fetch time
+- `EXCLUDED_STATUSES` expanded to include `cancelled` and `withdrawn` (previously only `complete`)
+
+#### Due Date Qualification Window — UK Working Days
+- Qualification's minimum due-date check now uses **5 UK working days** instead of a flat calendar-day offset
+- Working-day counter skips weekends and UK bank holidays via the `holidays` library (England subdivision) to include all bank holidays correctly
+
+#### Row Colour Logic Overhaul
+| Scenario | Previous colour | New colour |
+|---|---|---|
+| NoBid re-scraped, **field data changed** | Amber | ReCheck (Amber) |
+| NoBid re-scraped, **no field changes** | No colour applied | Red |
+| Bid status row (updated) | Unset | White / no background |
+| Bid status row (stale) | Unset | White / no background |
+- New `_has_field_changes()` helper detects real data changes, excluding `Bid Qualification`
+- NoBid→ReCheck promotion only fires when `_has_field_changes()` returns `True`
+
+#### Adapter2 Improvements
+- Malformed JSON handling synced with adapter1 (same error recovery path)
+- `ID` column now sourced from `release.tender.id` instead of `release.id`
+- `run_ts` timestamp used consistently for all `extract_json/` and malformed filenames across both adapters
+
+---
+
+### Updated Architecture (v2.1.0)
+
+```
+orchestrator.py               Top-level runner — loads project_config.json, dispatches adapters
+project_config.json           Sheet name and Drive folder ID (environment-specific variants ignored by .gitignore)
+adapter_config.json           Adapter registry + per-adapter filters, keywords, thresholds, API key
+config.py                     Project-level settings loader; date helper (working-day aware)
+list_bank_holidays.py         Utility: print UK bank holidays for a given year
+adapters/
+  adapter1/
+    main.py                   Adapter orchestration — 6-step pipeline
+    scraper.py                FTS OCDS API client; keyword filter (word-boundary regex); tag/status exclusions
+    tender_parser.py          OCDS JSON → dataset dict; _build_description(); qualify_tender()
+    sheets_writer.py          Google Sheets append / batchUpdate; colour logic; _has_field_changes()
+    google_sheets_auth.py     GCP service account authentication
+    sc_checker.py             Portal page SC clearance scanner
+    config.py                 Loads adapter1 section from adapter_config.json; date range functions
+  adapter2/
+    (mirrors adapter1 structure)
+```
+
+---
+
+### Updated Dataset Schema
+
+| Column | Field | Notes |
+|--------|-------|-------|
+| A | Portal Name | |
+| B | Adapter | Which adapter wrote this row |
+| C | Direct URL | |
+| D | OCID | Full OCDS identifier; deduplication key |
+| E | Name | |
+| F | **Bid Qualification** | Renamed from Tender Status |
+| G | Published On | |
+| H | Clarification Due Date | |
+| I | Tender Due Date | |
+| J | **Bid Qualification Date** | Renamed from Tender Status Date |
+| K | ID | |
+| L | Procurement Stage | |
+| M | Total Contract Value | |
+| N | Contract Duration | |
+| O | Annual Contract Value | |
+| P | Tender Description | Enriched with per-lot titles + descriptions |
+| Q | Buyer Name | |
+| R | CPV Code | |
+| S | **SC_Flag** | Now `Yes` / `No` (was `True` / `False`) |
+| T | Country | |
+| U | Locality | |
+| V | **SME_Flag** | Renamed from "Suitable for SMEs?" |
+| W | **PME_Flag** | NEW — Yes if Planning stage |
+| X | Processed Date | |
+| Y | Comments | |
+| Z | Last Modified Date | |
+| AA | Created Date | |
+| AB | **Bid Qualification Reason** | Renamed from Tender Status Reason |
+
+---
+
+### Known Limitations
+
+- SME and due-date filters remain commented out in `scraper.py`; date range is temporarily relaxed for broader test coverage
+- `Tender Due Date` is still sparsely populated for award/contract-type notices (these are now pre-filtered by `EXCLUDED_TAGS`)
+- ~10 % of tenders carry no value field in the API (unpublished by the buyer)
+- No built-in scheduler or UI; runs are manual or externally scheduled
+
+---
+
 ## v2.0.0 — 2026-06-01
 
 **Major architectural refactor: multi-adapter orchestration, expanded schema, auto-qualification, and OCID-based deduplication.**
