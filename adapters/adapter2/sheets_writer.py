@@ -555,7 +555,8 @@ class SheetsWriter:
                         if self._has_field_changes(tender, existing_data):
                             tender['Bid Qualification'] = 'ReCheck'
                             tender['Bid Qualification Date'] = today
-                            tender['Bid Qualification Reason'] = ''
+                            prev_reason = existing_data.get('Bid Qualification Reason', '')
+                            tender['Bid Qualification Reason'] = f"Previous status: NoBid | {prev_reason}" if prev_reason else "Previous status: NoBid"
                             logger.info(f"NoBid → ReCheck (changes detected) for OCID {tender_ocid} | Status Date set to {today}")
                         else:
                             tender['Bid Qualification'] = 'NoBid'
