@@ -44,12 +44,13 @@ class TenderScraper:
                     with open(debug_path, 'w', encoding='utf-8') as f:
                         f.write(raw)
                     logger.warning(f"Malformed JSON saved to: {debug_path}")
-                    # Attempt targeted repair: leading zeros on decimal numbers (e.g. 00.00 → 0.00)
+                    # Attempt targeted repair: leading zeros on numbers (e.g. 00.00 → 0.00, 00 → 0)
                     repaired = re.sub(r'(:\s*)0{2,}(\.\d+)', r'\g<1>0\2', raw)
+                    repaired = re.sub(r'(:\s*)0{2,}(?=\s*[,}\]\n])', r'\g<1>0', repaired)
                     if repaired != raw:
                         try:
                             data = json.loads(repaired)
-                            logger.warning(f"JSON repaired (leading zeros on decimals) for: {url}")
+                            logger.warning(f"JSON repaired (leading zeros) for: {url}")
                             return data
                         except ValueError:
                             pass  # repair didn't fully fix it — fall through to diagnostics
