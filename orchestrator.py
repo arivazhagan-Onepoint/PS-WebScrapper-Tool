@@ -7,6 +7,7 @@ import sys
 import traceback
 from datetime import datetime
 
+from config import UK_TIMEZONE
 from notifier import send_alert
 
 logger = logging.getLogger(__name__)
@@ -46,20 +47,21 @@ def run_adapter(adapter_cfg, target_date=None):
     return module.main(target_date=target_date)
 
 
-def _build_report(outcomes, started_at, finished_at, target_date, environment='N/A'):
+def _build_report(outcomes, started_at, finished_at, anchor_date, environment='N/A',
+                  anchor_is_default=False):
     """Return (subject, html_body) summarising a completed orchestrator run."""
     ran = len(outcomes)
     failed = [o for o in outcomes if o['status'] == 'failed']
     with_errors = [o for o in outcomes if o['status'] == 'success' and o['stats'].get('errors', 0)]
 
     if failed:
-        subject = f"❌ PS WebScrapper Tool [{environment}] — FAILURE ({len(failed)} of {ran} adapter(s) failed)"
+        subject = f"❌ PS WebScrapper Tool [{environment}] — {anchor_date} — FAILURE ({len(failed)} of {ran} adapter(s) failed)"
         banner_bg = '#c0392b'
     elif with_errors:
-        subject = f"⚠️ PS WebScrapper Tool [{environment}] — COMPLETED WITH ERRORS ({ran}/{ran} adapters)"
+        subject = f"⚠️ PS WebScrapper Tool [{environment}] — {anchor_date} — COMPLETED WITH ERRORS ({ran}/{ran} adapters)"
         banner_bg = '#e67e22'
     else:
-        subject = f"✅ PS WebScrapper Tool [{environment}] — SUCCESS ({ran}/{ran} adapters)"
+        subject = f"✅ PS WebScrapper Tool [{environment}] — {anchor_date} — SUCCESS ({ran}/{ran} adapters)"
         banner_bg = '#27ae60'
 
     rows = []
@@ -98,7 +100,7 @@ def _build_report(outcomes, started_at, finished_at, target_date, environment='N
   <p><b>Environment:</b> {environment}<br>
      <b>Started:</b> {started_at}<br>
      <b>Finished:</b> {finished_at}<br>
-     <b>Publication anchor date:</b> {target_date or 'today (default)'}</p>
+     <b>Publication anchor date:</b> {anchor_date}{' (today, default)' if anchor_is_default else ''}</p>
   <table cellpadding="8" cellspacing="0" border="1"
          style="border-collapse:collapse;border-color:#ddd;font-size:14px">
     <tr style="background:#f0f0f0">
@@ -126,6 +128,11 @@ def main(adapter_filter=None, target_date=None):
         logger.warning("No adapters configured in adapter_config.json")
         return
 
+    # Resolve the publication anchor to a concrete date (UK timezone, matching
+    # what the scrapers use) so it can be shown in the alert subject.
+    anchor_date = target_date or datetime.now(UK_TIMEZONE).date()
+    anchor_is_default = target_date is None
+
     started_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     outcomes = []
 
@@ -148,7 +155,8 @@ def main(adapter_filter=None, target_date=None):
                              'error': tb})
 
     finished_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    subject, html = _build_report(outcomes, started_at, finished_at, target_date, environment)
+    subject, html = _build_report(outcomes, started_at, finished_at, anchor_date,
+                                  environment, anchor_is_default)
     send_alert(subject, html, notify_cfg)
     return outcomes
 
