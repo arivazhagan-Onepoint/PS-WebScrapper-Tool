@@ -63,6 +63,30 @@ DATASET_FIELDS = [
     "Created Date",
 ]
 
+# Fields compared between old and new to detect meaningful changes.
+# Shared by both adapters (imported via `from config import *` in each
+# adapter's config shim) so the two stay in sync automatically.
+# Tuple format: (dataset field name, short label for comment, max chars or None)
+CHANGE_FIELDS = [
+    ('Bid Qualification',     'Status',       None),
+    ('Total Contract Value',  'Value',        None),
+    ('Contract Duration',     'Duration',     None),
+    ('Tender Due Date',       'Due',          None),
+    ('Clarification Due Date','ClarDue',      None),
+    ('Procurement Stage',     'Stage',        50),
+    ('Buyer Name',            'Buyer',        50),
+    ('Annual Contract Value', 'Annual',       None),
+    ('Tender Description',    'Desc',         80),
+    ('PME_Flag',              'PME_Flag',     None),
+    ('SC_Flag',               'SC_Flag',      None),
+    ('Name',                  'Name',         60),
+    ('Published On',          'Published',    None),
+    ('CPV Code',              'CPV',          60),
+    ('SME_Flag',              'SME',          None),
+    ('Country',               'Country',      None),
+    ('Locality',              'Locality',     None),
+]
+
 # Logging
 LOG_FILE   = os.path.join(BASE_DIR, "tender_scraper.log")
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

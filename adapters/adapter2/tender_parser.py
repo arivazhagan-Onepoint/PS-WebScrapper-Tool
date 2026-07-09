@@ -51,6 +51,10 @@ class TenderParser:
                 'Locality':              self._locality(release)
             }
 
+            # Transient key (not a sheet column) — used by the sheets writer to
+            # annotate change-detected rows. Dropped before the row is written.
+            tender_data['_amendment_descriptions'] = self._amendment_descriptions(tender)
+
             tender_data['Comments'] = self._build_comment(tender_data)
 
             logger.info(
@@ -189,6 +193,21 @@ class TenderParser:
             if val:
                 parts.append(f"{label}:{val[:40]}")
         return ' | '.join(parts)
+
+    def _amendment_descriptions(self, tender):
+        """Return distinct, non-empty amendment descriptions from tender.amendments (OCDS).
+
+        Returns a list (portal-appended order), or [] when there are none. The
+        sheets writer decides which entries are newly seen for a given row.
+        """
+        seen = set()
+        descs = []
+        for am in tender.get('amendments', []) or []:
+            d = (am.get('description') or '').strip()
+            if d and d not in seen:
+                seen.add(d)
+                descs.append(d)
+        return descs
 
     def _build_description(self, tender):
         """Combine the tender-level description with per-lot titles and descriptions."""

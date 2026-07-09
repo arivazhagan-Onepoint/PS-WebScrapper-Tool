@@ -4,7 +4,7 @@ import time
 import random
 from datetime import datetime
 from googleapiclient.errors import HttpError
-from .config import TARGET_FOLDER_ID, SHEET_NAME, DATASET_FIELDS, ADAPTER_ID, UK_TIMEZONE
+from .config import TARGET_FOLDER_ID, SHEET_NAME, DATASET_FIELDS, CHANGE_FIELDS, ADAPTER_ID, UK_TIMEZONE
 from .google_sheets_auth import get_authenticated_service
 
 logger = logging.getLogger(__name__)
@@ -22,27 +22,6 @@ def _col_letter(n):
 
 
 LAST_COL = _col_letter(len(DATASET_FIELDS))
-
-# Fields compared between old and new to detect meaningful changes.
-# Tuple format: (dataset field name, short label for comment, max chars or None)
-CHANGE_FIELDS = [
-    ('Bid Qualification',         'Status',       None),
-    ('Total Contract Value',  'Value',        None),
-    ('Contract Duration',     'Duration',     None),
-    ('Tender Due Date',        'Due',          None),
-    ('Clarification Due Date', 'ClarDue',      None),
-    ('Procurement Stage',     'Stage',        50),
-    ('Buyer Name',            'Buyer',        50),
-    ('Annual Contract Value', 'Annual',       None),
-    ('PME_Flag',              'PME_Flag',     None),
-    ('SC_Flag',               'SC_Flag',      None),
-    ('Name',                  'Name',         60),
-    ('Published On',          'Published',    None),
-    ('CPV Code',              'CPV',          60),
-    ('SME_Flag',    'SME',          None),
-    ('Country',               'Country',      None),
-    ('Locality',              'Locality',     None),
-]
 
 ROW_COLORS = {
     'green':      {'red': 0.20, 'green': 0.74, 'blue': 0.39},
@@ -391,10 +370,13 @@ class SheetsWriter:
                 return True
         return False
 
-    def _build_update_comment(self, tender, existing_data, ts, status_reason=''):
+    def _build_update_comment(self, tender, existing_data, ts, status_reason='', amendment=''):
         """Generate a change-diff comment or 'no changes' note for an updated record.
-        When status_reason is provided it is appended inline to the Status change entry."""
+        When status_reason is provided it is appended inline to the Status change entry.
+        When amendment is provided it is prepended as the first entry of this run's line."""
         changes = []
+        if amendment:
+            changes.append(f"Amendment: {amendment}")
         for field, label, max_len in CHANGE_FIELDS:
             old = str(existing_data.get(field, '')).strip()
             new = str(tender.get(field, '')).strip()
@@ -557,6 +539,7 @@ class SheetsWriter:
 
                 existing_row = self.find_existing_row(tender_ocid)
                 qualify_comment = tender.pop('_qualify_comment', '')
+                amendment_list = tender.pop('_amendment_descriptions', []) or []
 
                 today = datetime.fromisoformat(now).strftime('%Y-%m-%d')
 
@@ -568,19 +551,32 @@ class SheetsWriter:
                     existing_data = self.existing_row_data.get(existing_row, {})
                     tender['Created Date'] = existing_data.get('Created Date') or now
                     old_status = str(existing_data.get('Bid Qualification', '')).strip()
-                    if old_status.startswith('NoBid'):
-                        if self._has_field_changes(tender, existing_data):
+                    # Amendment capture is status-independent: pick amendment descriptions
+                    # not already logged in this row's System reason column ("newly seen").
+                    prev_system = existing_data.get('Bid Qualification Reason(System)', '')
+                    new_amends = [d for d in amendment_list if d and d not in prev_system]
+                    comment_amendment = ' | '.join(new_amends)   # prepended to this run's comment
+                    # A row is "changed" if a tracked field moved OR a new amendment appeared.
+                    detected = self._has_field_changes(tender, existing_data) or bool(new_amends)
+                    if old_status.startswith(('NoBid', 'TBD')):
+                        if detected:
                             tender['Bid Qualification'] = 'ReCheck'
                             tender['Bid Qualification Date'] = today
                             system_reason_to_add = f'Previous status: {old_status}'
-                            logger.info(f"NoBid → ReCheck (changes detected) for OCID {tender_ocid} | Status Date set to {today}")
+                            logger.info(f"{old_status} → ReCheck (change detected) for OCID {tender_ocid} | Status Date set to {today}")
                         else:
                             tender['Bid Qualification'] = old_status
                             tender['Bid Qualification Date'] = existing_data.get('Bid Qualification Date', '')
                             system_reason_to_add = ''
-                            logger.info(f"NoBid preserved (no changes) for OCID {tender_ocid}")
+                            logger.info(f"'{old_status}' preserved (no changes) for OCID {tender_ocid}")
+                    elif old_status.startswith('Bid'):
+                        # Bid* never flips — retain status and date (amendment still recorded below)
+                        tender['Bid Qualification'] = old_status
+                        tender['Bid Qualification Date'] = existing_data.get('Bid Qualification Date', '')
+                        system_reason_to_add = ''
+                        logger.info(f"'{old_status}' retained ({'change detected' if detected else 'no changes'}) for OCID {tender_ocid}")
                     elif old_status not in SYSTEM_STATUSES:
-                        # Other manual overrides: preserve as-is
+                        # Other manual overrides (e.g. ReCheck, custom): preserve as-is
                         tender['Bid Qualification'] = old_status
                         tender['Bid Qualification Date'] = existing_data.get('Bid Qualification Date', '')
                         system_reason_to_add = ''
@@ -594,6 +590,10 @@ class SheetsWriter:
                             logger.info(f"Status changed for OCID {tender_ocid}: '{old_status}' -> '{new_status}' | Status Date set to {today}")
                         else:
                             tender['Bid Qualification Date'] = existing_data.get('Bid Qualification Date', '')
+                    # Status-independent: prepend any newly-seen amendment text to the System reason log.
+                    if new_amends:
+                        note = 'Amendment: ' + ' | '.join(new_amends)
+                        system_reason_to_add = f'{note} | {system_reason_to_add}' if system_reason_to_add else note
                     # Retain reason history across runs: accumulate the system log,
                     # carry the human-entered column forward untouched.
                     tender['Bid Qualification Reason(System)'] = self._accumulate_system_reason(
@@ -602,7 +602,7 @@ class SheetsWriter:
                     tender['Bid Qualification Reason(Human)'] = existing_data.get('Bid Qualification Reason(Human)', '')
                     # Build comments: existing sheet comments + change diff (reason inlined on status change)
                     status_reason = qualify_comment.split(' | ', 1)[-1] if qualify_comment else ''
-                    diff = self._build_update_comment(tender, existing_data, ts, status_reason)
+                    diff = self._build_update_comment(tender, existing_data, ts, status_reason, comment_amendment)
                     # Last Modified Date only updates when something actually changed
                     has_changes = 'no changes' not in diff
                     tender['Last Modified Date'] = now if has_changes else existing_data.get('Last Modified Date', now)
