@@ -46,20 +46,20 @@ def run_adapter(adapter_cfg, target_date=None):
     return module.main(target_date=target_date)
 
 
-def _build_report(outcomes, started_at, finished_at, target_date):
+def _build_report(outcomes, started_at, finished_at, target_date, environment='N/A'):
     """Return (subject, html_body) summarising a completed orchestrator run."""
     ran = len(outcomes)
     failed = [o for o in outcomes if o['status'] == 'failed']
     with_errors = [o for o in outcomes if o['status'] == 'success' and o['stats'].get('errors', 0)]
 
     if failed:
-        subject = f"❌ Tender Tracker — FAILURE ({len(failed)} of {ran} adapter(s) failed)"
+        subject = f"❌ PS WebScrapper Tool [{environment}] — FAILURE ({len(failed)} of {ran} adapter(s) failed)"
         banner_bg = '#c0392b'
     elif with_errors:
-        subject = f"⚠️ Tender Tracker — COMPLETED WITH ERRORS ({ran}/{ran} adapters)"
+        subject = f"⚠️ PS WebScrapper Tool [{environment}] — COMPLETED WITH ERRORS ({ran}/{ran} adapters)"
         banner_bg = '#e67e22'
     else:
-        subject = f"✅ Tender Tracker — SUCCESS ({ran}/{ran} adapters)"
+        subject = f"✅ PS WebScrapper Tool [{environment}] — SUCCESS ({ran}/{ran} adapters)"
         banner_bg = '#27ae60'
 
     rows = []
@@ -95,7 +95,8 @@ def _build_report(outcomes, started_at, finished_at, target_date):
 <html><body style="font-family:Arial,Helvetica,sans-serif;color:#222">
   <div style="background:{banner_bg};color:#fff;padding:14px 18px;border-radius:6px;
               font-size:18px;font-weight:bold">{subject}</div>
-  <p><b>Started:</b> {started_at}<br>
+  <p><b>Environment:</b> {environment}<br>
+     <b>Started:</b> {started_at}<br>
      <b>Finished:</b> {finished_at}<br>
      <b>Publication anchor date:</b> {target_date or 'today (default)'}</p>
   <table cellpadding="8" cellspacing="0" border="1"
@@ -117,7 +118,9 @@ def main(adapter_filter=None, target_date=None):
     logger.info(f"Publication anchor date: {target_date or 'today (default)'}")
     config = load_config()
     adapters = config.get('adapters', [])
-    notify_cfg = load_project_config().get('notifications', {})
+    proj_cfg = load_project_config()
+    notify_cfg = proj_cfg.get('notifications', {})
+    environment = proj_cfg.get('google_sheets', {}).get('environment', 'N/A')
 
     if not adapters:
         logger.warning("No adapters configured in adapter_config.json")
@@ -145,7 +148,7 @@ def main(adapter_filter=None, target_date=None):
                              'error': tb})
 
     finished_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    subject, html = _build_report(outcomes, started_at, finished_at, target_date)
+    subject, html = _build_report(outcomes, started_at, finished_at, target_date, environment)
     send_alert(subject, html, notify_cfg)
     return outcomes
 
